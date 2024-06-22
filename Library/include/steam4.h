@@ -130,15 +130,6 @@ extern void dumpProp(FILE *fp, Prop *prop);
    offer output value for prop->phase
 *****************************************/
  
-extern void sat_t(double t, Prop *pliq, Prop *pvap);
-/*
-  Computes liquid and vapour properties for a given saturation temperature
-*/
-
-extern void sat_p(double p, Prop *pliq, Prop *pvap);
-/*
-  Computes liquid and vapour properties for a given saturation pressure
-*/
 
 extern void water_td(double t, double d, Prop *prop);
 /*
@@ -149,22 +140,33 @@ extern void water_td(double t, double d, Prop *prop);
 extern "C"
 {
 #endif
-    
+
+    extern void sat_t(double t, Prop *pliq, Prop *pvap);
+    /*
+      Computes liquid and vapour properties for a given saturation temperature
+    */
+
+    extern void sat_p(double p, Prop *pliq, Prop *pvap);
+    /*
+      Computes liquid and vapour properties for a given saturation pressure
+    */
+
     extern void water_tp(double t, double p, double d, double dp, Prop *prop);
-    
+
+    /*
+      Computes properties for given temperature and pressure in the one-
+      phase-region within a given tolerance of pressure using a given
+      approximation of density.
+      No output in case of saturation, i.e. |1 - p / ps(T)| < 1e-6.
+    */
+
+    extern void water_ph(double p, double h, double t, double d,
+                 double dp, double dh, Prop *prop);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-/*
-  Computes properties for given temperature and pressure in the one-
-  phase-region within a given tolerance of pressure using a given
-  approximation of density.
-  No output in case of saturation, i.e. |1 - p / ps(T)| < 1e-6.
-*/
-
-extern void water_ph(double p, double h, double t, double d,
-		     double dp, double dh, Prop *prop);
 /*
   Computes properties for given pressure and enthalpy within given
   tolerances of pressure and enthalpy using given approximations

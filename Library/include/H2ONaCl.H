@@ -149,6 +149,7 @@ namespace H2ONaCl
          * @param mu_v 
          */
         void calcViscosity(int reg, double P, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v);
+        void calcViscosity_ph(int reg, double P, double H, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v);
         void fluidProp_crit_T(double T, double tol, double& P,double& Rho_l, double& Rho_v, double& h_l, double& h_v);
         void fluidProp_crit_P(double P, double tol, double& T_2ph, double& Rho_l, double& h_l, double& h_v, double& dpd_l, double& dpd_v, double& Rho_v, double& Mu_l, double& Mu_v);
         void guess_T_PhX(double P, double h, double X, double& T1, double& T2);
@@ -158,6 +159,7 @@ namespace H2ONaCl
         double water_rho_pT(double p, double T_K);
         double water_h_pT(double p, double T_K);
         double water_mu_pT(double p, double T_K);
+        double water_mu_ph(double p, double h, double T_K);
     public:
         // cH2ONaCl(double P, double T_K, double X);//P: Pa. T: K  X, wt%: (0, 1]
         cH2ONaCl();
@@ -209,6 +211,16 @@ namespace H2ONaCl
          * @return H2ONaCl::PROP_H2ONaCl 
          */
         H2ONaCl::PROP_H2ONaCl prop_pHX(double p, double H, double X_wt);
+        /**
+         * @brief Calculate thermal dynamic properties of NaCl-H2O system.
+         * Temperature calculaitons are based on bisection method.
+         *
+         * @param p pressure [Pa]
+         * @param H specific enthalpy [J/kg]
+         * @param X_wt Salinity [mass fraction, [0,1]]
+         * @return H2ONaCl::PROP_H2ONaCl
+         */
+        H2ONaCl::PROP_H2ONaCl prop_pHX_bisection(double p, double H, double X_wt);
         /**
          * @brief Calculate bulk density.
          * 

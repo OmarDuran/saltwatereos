@@ -442,6 +442,282 @@ namespace H2ONaCl
         return prop;
     }
 
+    H2ONaCl::PROP_H2ONaCl cH2ONaCl:: prop_pHX_bisection(double p, double H, double X_wt)
+    {
+        H2ONaCl::PROP_H2ONaCl prop;
+        init_prop(prop);
+        prop.P=p; prop.H=H; prop.X_wt=X_wt;
+        double tol=1e-3;
+        
+        double T1, T2;
+        guess_T_PhX(p, H, X_wt, T1, T2);
+        PROP_H2ONaCl prop1, prop2;
+        prop1=prop_pTX(p,T1+Kelvin,X_wt, false);
+        prop2=prop_pTX(p,T2+Kelvin,X_wt, false);
+        double h1 = prop1.H;
+        double h2 = prop2.H;
+        
+        if (isnan(T1))
+        {
+            cout<<"error, T1->prop_pHX is nan: "<<T2<<endl;
+            exit(0);
+        }
+        
+        if (isnan(T2))
+        {
+            cout<<"error, T2->prop_pHX is nan: "<<T2<<endl;
+            exit(0);
+        }
+        if((T2 > 1000 || h1 > H) || (h2 < H && T2 == 1000  && p >= 1.7e7) )
+        {
+            prop.Region=UnknownPhaseRegion;
+            prop.Rho=NAN;
+            prop.Rho_l=NAN;
+            prop.Rho_v=NAN;
+            prop.Rho_h=NAN;
+            prop.H=NAN;
+            prop.H_l=NAN;
+            prop.H_v=NAN;
+            prop.H_h=NAN;
+            prop.S_l=NAN;
+            prop.S_v=NAN;
+            prop.S_h=NAN;
+            prop.Mu=NAN;
+            prop.Mu_l=NAN;
+            prop.X_l=NAN;
+            prop.X_v=NAN;
+        }
+        else
+        {
+            
+            int max_iter=1000;
+            int iteri = 0;
+            // find the temperature with bisection method
+            auto res_H = [&H](float H_star) -> float {
+                return (H_star/H) - 1.0;
+            };
+            double T_a = T1;
+            double T_b = T2;
+            double T_mid = T1;
+            for (iteri = 0; iteri < max_iter; ++iteri) {
+                
+                // claculate H(T)
+                PROP_H2ONaCl PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
+                PROP_H2ONaCl PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
+                
+                T_mid = (T_a +  T_b) / 2;
+                PROP_H2ONaCl PROP_mid=prop_pTX(p,T_mid+Kelvin,X_wt, false);
+                
+                if (res_H(PROP_a.H) * res_H(PROP_b.H) > 0.0) {
+                    
+                    // robustness on flat regions or near critical point
+                    // left interval expansion
+                    bool a_predicate = PROP_a.H > H;
+                    while(PROP_a.H > H)
+                    {
+                        T_a -= 0.01;
+                        PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
+                        if(T_a < 0.0){
+                            T_a = 0.0;
+                            break;
+                        }
+                    }
+                    
+                    // right interval expansion
+                    bool b_predicate = PROP_b.H < H;
+                    while(PROP_b.H < H)
+                    {
+                        T_b += 0.01;
+                        PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
+                        if(T_b > 900.0){
+                            T_b = 900;
+                            break;
+                        }
+                    }
+                    if (a_predicate and b_predicate){
+                        T_mid = (T_a +  T_b) / 2;
+                    }
+                    if (a_predicate) {
+                        T_mid = T_a;
+                    } else {
+                        T_mid = T_b;
+                    }
+                    PROP_H2ONaCl PROP_mid=prop_pTX(p,T_mid+Kelvin,X_wt, false);
+                    prop.Region = PROP_mid.Region;
+                    prop.T = T_mid;
+                    prop.H = PROP_mid.H;
+                    prop.Rho = PROP_mid.Rho;
+                    prop.Rho_l = PROP_mid.Rho_l;
+                    prop.Rho_v = PROP_mid.Rho_v;
+                    prop.Rho_h = PROP_mid.Rho_h;
+                    prop.H_l = PROP_mid.H_l;
+                    prop.H_v = PROP_mid.H_v;
+                    prop.H_h = PROP_mid.H_h;
+                    prop.S_l = PROP_mid.S_l;
+                    prop.S_v = PROP_mid.S_v;
+                    prop.S_h = PROP_mid.S_h;
+                    prop.X_l = PROP_mid.X_l;
+                    prop.X_v = PROP_mid.X_v;
+                    break;
+                }
+                
+
+                if (isnan(T_mid))
+                {
+                    printf("T_mid is nan, T1: %f, T2: %f, H: %f, X:%f, h1: %f, h2: %f\n", T1, T2, H, X_wt, h1, h2);
+                    exit(0);
+                }
+                // cout<<"new H: "<<PROP_new.H<<" region: "<<m_phaseRegion_name[PROP_new.Region]<<endl; exit(0);
+                // claculate new h in  L+V+H region
+                calc_sat_lvh(PROP_mid, H ,X_wt, false);
+                switch (PROP_mid.Region)
+                {
+                case ThreePhase_V_L_H:
+                    {
+                        //could happen that S_l is negative, if h is outside of vlh region
+                        PROP_mid.H = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l +
+                                      PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v +
+                                      PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                        if(PROP_mid.S_l < 0) //calc S_h and S_v
+                        {
+                            PROP_mid.S_h = (PROP_mid.Rho_v * (PROP_mid.X_v - X_wt))/(PROP_mid.Rho_h * (X_wt-1) + PROP_mid.Rho_v * (PROP_mid.X_v - X_wt));
+                            PROP_mid.S_v = 1 - PROP_mid.S_h;
+                            PROP_mid.Rho = PROP_mid.S_v * PROP_mid.Rho_v + PROP_mid.S_h * PROP_mid.Rho_h ;
+                            PROP_mid.H   = (PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h )/ PROP_mid.Rho;
+                        }
+                        if(PROP_mid.S_v<0) //calc S_h and S_l
+                        {
+                            PROP_mid.S_h = (PROP_mid.Rho_l*(PROP_mid.X_l-X_wt))/(PROP_mid.Rho_h*(X_wt-1) + PROP_mid.Rho_l*(PROP_mid.X_l-X_wt));
+                            PROP_mid.S_l = 1 - PROP_mid.S_h;
+                            PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_h * PROP_mid.Rho_h ;
+                            PROP_mid.H   = ( PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h )/ PROP_mid.Rho;
+                        }
+                        if(PROP_mid.S_h<0) //calc S_l and S_v
+                        {
+                            PROP_mid.S_l = (PROP_mid.Rho_v*(PROP_mid.X_v - X_wt))/(PROP_mid.Rho_v*(PROP_mid.X_v-X_wt)+ PROP_mid.Rho_l*(X_wt-PROP_mid.X_l));
+                            PROP_mid.S_v = 1 - PROP_mid.S_l;
+                            PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_v * PROP_mid.Rho_v ;
+                            PROP_mid.H   = ( PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v )/ PROP_mid.Rho;
+                        }
+                    }
+                    break;
+                case TwoPhase_L_V_X0:
+                    {
+                        // this function has slightly different resutls than fluidprop_TP_Rho
+                        // for single pahse X = 0
+                        double T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0;
+                        fluidProp_crit_P(p , 1e-12, T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
+                        double S_l = (Rho_v*(h_v - H))/(Rho_v*(h_v-H) + Rho_l*(H-h_l));
+                        double S_v = 1- S_l;
+                        double Rho = S_l * Rho_l + S_v * Rho_v;
+
+                        T_mid = T_crit;
+                        PROP_mid.H     = H;
+                        PROP_mid.Rho   = Rho;
+                        PROP_mid.Rho_l = Rho_l;
+                        PROP_mid.Rho_v = Rho_v;
+                        PROP_mid.H_l   = h_l;
+                        PROP_mid.H_v   = h_v;
+                        PROP_mid.S_l   = S_l;
+                        PROP_mid.S_v   = S_v;
+                        if(S_l>1)
+                        {
+                            PROP_mid.H    = h_l;
+                            PROP_mid.S_l  = 1;
+                            PROP_mid.S_v  = 0;
+                            PROP_mid.Region  = SinglePhase_L;
+                            PROP_mid.H_v  = 0;
+                            PROP_mid.Rho_v= 0;
+                        }
+                        if(S_l<0)
+                        {
+                            PROP_mid.H     = h_v;
+                            PROP_mid.S_l   = 0;
+                            PROP_mid.S_v   = 1;
+                            PROP_mid.Region   = SinglePhase_V;
+                            PROP_mid.H_l   = 0;
+                            PROP_mid.Rho_l = 0;
+                        }
+        
+                    }
+                    break;
+                default:
+                    break;
+                }
+                if(X_wt==1)
+                {
+                    double X_hal_liq, T_hm;
+                    calc_halit_liqidus(p, T_mid,X_hal_liq, T_hm);  // T not important
+                    if(T_mid <= T_hm && T_mid > (T_hm - 1e-4))
+                    {
+                        double Nenner = ( H * (PROP_mid.Rho_l - PROP_mid.Rho_h) - (PROP_mid.H_l * PROP_mid.Rho_l - PROP_mid.H_h * PROP_mid.Rho_h ) );
+                        double S_l_hm = PROP_mid.Rho_h * (PROP_mid.H_h - H)/ Nenner;
+                        double S_h_hm = 1 - S_l_hm;
+                        double Rho_hm = S_l_hm * PROP_mid.Rho_l + (1-S_l_hm) * PROP_mid.Rho_h;
+                        double h_hm = ( S_l_hm * PROP_mid.Rho_l * PROP_mid.H_l + S_h_hm * PROP_mid.Rho_h * PROP_mid.H_h )/Rho_hm;
+                        PROP_mid.S_l  = S_l_hm;
+                        PROP_mid.S_h  = S_h_hm;
+                        PROP_mid.Rho  = Rho_hm;
+                        PROP_mid.H    = h_hm;
+                    }
+                }
+                if (isnan(T_mid))
+                {
+                    cout<<"error, T_mid->prop_pHX is nan: "<<T_mid<<endl;
+                    exit(0);
+                }
+                
+                //  writing global storage
+                prop.Region = PROP_mid.Region;
+                prop.T = T_mid;
+                prop.H = PROP_mid.H;
+                prop.Rho = PROP_mid.Rho;
+                prop.Rho_l = PROP_mid.Rho_l;
+                prop.Rho_v = PROP_mid.Rho_v;
+                prop.Rho_h = PROP_mid.Rho_h;
+                prop.H_l = PROP_mid.H_l;
+                prop.H_v = PROP_mid.H_v;
+                prop.H_h = PROP_mid.H_h;
+                prop.S_l = PROP_mid.S_l;
+                prop.S_v = PROP_mid.S_v;
+                prop.S_h = PROP_mid.S_h;
+                prop.X_l = PROP_mid.X_l;
+                prop.X_v = PROP_mid.X_v;
+
+                if (fabs(res_H(PROP_mid.H)) < tol || fabs((T_b - T_a) / 2) < tol*tol) {
+                    break;
+                }
+                
+                // Update the interval
+                if (res_H(PROP_mid.H) * res_H(PROP_a.H) < 0) {
+                    T_b = T_mid;
+                } else {
+                    T_a = T_mid;
+                }
+                
+            }
+            if (iteri ==max_iter){
+                std::cout<<"Funcion prop_pHX_bisection reach max number of iterations."<<std::endl;
+                std::cout<<"Specification: P= "<<p<<", H= "<<H<<", X_wt= "<<X_wt<<std::endl;
+                std::cout<<"Ta: "<<T_a<<", Tb: "<<T_b<<std::endl;
+                std::cout<<"Residual at mid point: "<<fabs(res_H(prop.H))<<std::endl;
+                std::cout<<"Stop tolerance: "<< tol <<std::endl;
+            }
+            
+            
+        }
+        if (isnan(prop.T))
+        {
+            cout<<"error, prop.T is nan in prop_pHX: "<<prop.T<<endl;
+            exit(0);
+        }
+        // calculate dynamic viscosity
+//        calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
+        calcViscosity_ph(prop.Region, p, H, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
+
+        return prop;
+    }
+
     void cH2ONaCl:: calc_halit_liqidus(double Pres, double Temp, double& X_hal_liq, double& T_hm)
     {
         Pres = Pres/1e5;  //[bar]
@@ -2096,6 +2372,7 @@ namespace H2ONaCl
         {
             for(int i=0;i<z.size();i++)fpout<<z[i]<<" ";fpout<<endl;
         }
+        float eps_tol = 1.0e-10;
         fpout<<"POINT_DATA "<<props.size()<<endl;
         // 1. phase region
         fpout<<"SCALARS PhaseRegion int"<<endl;
@@ -2109,7 +2386,7 @@ namespace H2ONaCl
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].T<<" ";
+            fpout<<props[i].T+Kelvin<<" ";
         }fpout<<endl;
         // 2. bulk Rho 
         fpout<<"SCALARS Rho double"<<endl;
@@ -2139,61 +2416,120 @@ namespace H2ONaCl
         {
             fpout<<props[i].X_v<<" ";
         }fpout<<endl;
-        // 3. rho_l
+        // 3. Rho_l
         fpout<<"SCALARS Rho_l double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].Rho_l<<" ";
+            if(fabs(props[i].S_l) < eps_tol){
+                fpout<<props[i].Rho<<" ";
+            }else{
+                fpout<<props[i].Rho_l<<" ";
+            }
         }fpout<<endl;
         // 4. Rho_v
         fpout<<"SCALARS Rho_v double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].Rho_v<<" ";
+            if(fabs(props[i].S_v) < eps_tol){
+                fpout<<props[i].Rho<<" ";
+            }else{
+                fpout<<props[i].Rho_v<<" ";
+            }
         }fpout<<endl;
         // 5. Rho_h
         fpout<<"SCALARS Rho_h double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].Rho_h<<" ";
+            if(fabs(props[i].S_h) < eps_tol){
+                fpout<<props[i].Rho<<" ";
+            }else{
+                fpout<<props[i].Rho_h<<" ";
+            }
         }fpout<<endl;
         // 6. H_l
         fpout<<"SCALARS H_l double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].H_l<<" ";
+            if(fabs(props[i].S_l) < eps_tol){
+                fpout<<props[i].H<<" ";
+            }else{
+                fpout<<props[i].H_l<<" ";
+            }
         }fpout<<endl;
         // 7. H_v
         fpout<<"SCALARS H_v double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].H_v<<" ";
+            if(fabs(props[i].S_v) < eps_tol){
+                fpout<<props[i].H<<" ";
+            }else{
+                fpout<<props[i].H_v<<" ";
+            }
         }fpout<<endl;
         // 8. H_h
         fpout<<"SCALARS H_h double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].H_h<<" ";
+            if(fabs(props[i].S_h) < eps_tol){
+                fpout<<props[i].H<<" ";
+            }else{
+                fpout<<props[i].H_h<<" ";
+            }
         }fpout<<endl;
+        // 9. S_l
+        fpout<<"SCALARS S_l double"<<endl;
+        fpout<<"LOOKUP_TABLE default"<<endl;
+        for(int i=0;i<props.size();i++)
+        {
+            fpout<<props[i].S_l<<" ";
+        }fpout<<endl;
+        // 10. S_v
+        fpout<<"SCALARS S_v double"<<endl;
+        fpout<<"LOOKUP_TABLE default"<<endl;
+        for(int i=0;i<props.size();i++)
+        {
+            fpout<<props[i].S_v<<" ";
+        }fpout<<endl;
+        // 11. S_h
+        fpout<<"SCALARS S_h double"<<endl;
+        fpout<<"LOOKUP_TABLE default"<<endl;
+        for(int i=0;i<props.size();i++)
+        {
+            fpout<<props[i].S_h<<" ";
+        }fpout<<endl;
+        auto mu_mix = [](float sl, float mu_l, float sv, float mu_v) -> float {
+            float mu = sl * mu_l + sv * mu_v + sv * mu_v;
+            return mu;
+        };
         // liquid viscosity
         fpout<<"SCALARS mu_l double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].Mu_l<<" ";
+            if(fabs(props[i].S_l) < eps_tol){
+                float mu_mix_val = mu_mix(props[i].S_l,props[i].Mu_l,props[i].S_v,props[i].Mu_v);
+                fpout<<mu_mix_val<<" ";
+            }else{
+                fpout<<props[i].Mu_l<<" ";
+            }
         }fpout<<endl;
         // vapour viscosity
         fpout<<"SCALARS mu_v double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].Mu_v<<" ";
+            if(fabs(props[i].S_v) < 1.0e-10){
+                float mu_mix_val = mu_mix(props[i].S_l,props[i].Mu_l,props[i].S_v,props[i].Mu_v);
+                fpout<<mu_mix_val<<" ";
+            }else{
+                fpout<<props[i].Mu_v<<" ";
+            }
         }fpout<<endl;
         fpout.close();
     }
@@ -2632,6 +2968,53 @@ namespace H2ONaCl
             }
         }
     }
+    void cH2ONaCl:: calcViscosity_ph(int reg, double P, double H, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v)
+    {
+        double a1 = -35.9858;
+        double a2 = 0.80017;
+        double b1 = 1e-6;
+        double b2 = -0.05239;
+        double b3 = 1.32936;
+        mu_l = 0;
+        mu_v = 0;
+        // calculation of mu liquid
+        bool ind_l=(reg==SinglePhase_L || reg==TwoPhase_L_V_X0 || reg==TwoPhase_L_H || reg==ThreePhase_V_L_H || reg==TwoPhase_V_L_L || reg==TwoPhase_V_L_V);
+        if(ind_l)
+        {
+            double e1 = a1 * pow(Xw_l,a2);
+            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_l,a2) * pow(T,b2);
+            double T_star_l = e1 + e2 * T;
+            if(std::isnan(T_star_l))T_star_l = 0;
+            // SteamState S = freesteam_set_pT(P, T_star_l+Kelvin);
+            // mu_l=freesteam_mu(S);
+            mu_l=water_mu_ph(P, H, T_star_l+Kelvin);
+//            if(std::isnan(mu_l))
+//            {
+//                double T_2ph0, Rho_l0, h_l0,h_v0, dpd_l0, dpd_v0, Rho_v0, Mu_v0;
+//                fluidProp_crit_P(P, 1e-10,T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l, Mu_v0);
+//            }
+        }
+        bool ind_v = ( reg==TwoPhase_L_V_X0 | reg==SinglePhase_V | reg==TwoPhase_V_H | reg==ThreePhase_V_L_H | reg==TwoPhase_V_L_L | reg==TwoPhase_V_L_V);
+        if(ind_v)
+        {
+            double e1 = a1 * pow(Xw_v,a2);
+            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_v,a2) * pow(T,b2);
+            double T_star_v = e1 + e2 * T;
+            
+            bool ind_0 = (T_star_v > 0);
+            if(ind_0)
+            {
+                // SteamState S = freesteam_set_pT(P, T_star_v+Kelvin);
+                // mu_v=freesteam_mu(S);
+                mu_v=water_mu_ph(P, H, T_star_v+Kelvin);
+            }
+//            if(std::isnan(mu_v))
+//            {
+//                double T_2ph0, Rho_l0, h_l0,h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0;
+//                fluidProp_crit_P(P, 1e-10,T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0, mu_v);
+//            }
+        }
+    }
     double cH2ONaCl::water_rho_pT(double p, double T_K)
     {
         #ifdef USE_PROST
@@ -2685,6 +3068,20 @@ namespace H2ONaCl
             d = 0.0;
             water_tp(T_K,p,d,dp,prop0);
             double mu=viscos(prop0);
+            if(std::isnan(mu))
+            {
+                Prop * propl = newProp('t', 'p', 1);
+                Prop * propv = newProp('t', 'p', 1);
+                sat_p(p, propl, propv);
+                double Tl = propl->T;
+                double Tv = propv->T;
+                if ((fabs((Tl-Tv)/2) < 1.0e-8) and (T_K > Tl)) {
+                    mu=viscos(propl);
+                }
+                else {
+                    mu=viscos(propv);
+                }
+            }
             // very very important!!!!
             prop0 = freeProp(prop0);
             return mu;
@@ -2692,6 +3089,53 @@ namespace H2ONaCl
             SteamState S = freesteam_set_pT(p, T_K);
             return freesteam_mu(S);
         #endif 
+    }
+    double cH2ONaCl::water_mu_ph(double p, double h, double T_K)
+    {
+        #ifdef USE_PROST
+            double d, dp, ds, dh;
+            Prop *prop0;
+            dp = 1.0e-8;
+            ds = 1.0e-8;
+            dh = 1.0e-8;
+            prop0 = newProp('t', 'p', 1);
+            Prop * propl = newProp('t', 'p', 1);
+            Prop * propv = newProp('t', 'p', 1);
+            sat_p(p, propl, propv);
+            d = 0.0;
+            double Tl = propl->T;
+            double Tv = propv->T;
+            assert((fabs((Tl-Tv)/2) < 1.0e-5));
+            double Tsat = Tl = Tv;
+            if (T_K > Tsat) {
+                d = propv->d;
+            }
+            else {
+                d = propl->d;
+            }
+            water_ph(p,h,T_K,d,dp,dh,prop0);
+            double mu=viscos(prop0);
+            if(std::isnan(mu))
+            {
+                Prop * propl = newProp('t', 'p', 1);
+                Prop * propv = newProp('t', 'p', 1);
+                sat_p(p, propl, propv);
+                double Tl = propl->T;
+                double Tv = propv->T;
+                if ((fabs((Tl-Tv)/2) < 1.0e-8) and (T_K > Tl)) {
+                    mu=viscos(propl);
+                }
+                else {
+                    mu=viscos(propv);
+                }
+            }
+            // very very important!!!!
+            prop0 = freeProp(prop0);
+            return mu;
+        #else
+            SteamState S = freesteam_set_pT(p, T_K);
+            return freesteam_mu(S);
+        #endif
     }
     string cH2ONaCl::checkTemperatureRange(double temperature_C)
     {

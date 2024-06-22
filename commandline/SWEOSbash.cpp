@@ -746,7 +746,7 @@ namespace SWEOSbash
           {
             try
             {
-              props[k+j*lenX+i*lenHX]=eos.prop_pHX(arrP[i]*1e5, arrH[j]*1000.0, arrX[k]);
+              props[k+j*lenX+i*lenHX]=eos.prop_pHX_bisection(arrP[i]*1e5, arrH[j]*1000.0, arrX[k]);
             }
             catch(const std::exception& e)
             {

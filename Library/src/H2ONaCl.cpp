@@ -443,10 +443,10 @@ namespace H2ONaCl
         H2ONaCl::PROP_H2ONaCl prop;
         init_prop(prop);
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
-        double tol=1e-3;
+        double tol=1e-2;
         
-        double T_scale_up = 1.5;
-        double T_scale_down = 0.5;
+        double T_scale_up = 1.25;
+        double T_scale_down = 0.75;
         double T1, T2;
         guess_T_PhX(p, H, X_wt, T1, T2);
         T1 *= T_scale_down;

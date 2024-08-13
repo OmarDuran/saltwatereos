@@ -618,7 +618,7 @@ void extra_ph(double p, double h, double *t, double *d,
 	if (p > 3000.0) {
 	    /* h = 9950, p = 3000 */
 	    td(2635.0940908011, 1.0070832064, mPro, prop);
-	} else if (p < PMIN) {
+	} else if (p < PMIN_L) {
 	    /* h = 9950, p = 1e-6 */
 	    td(3122.1018913308, 6.94e-10, mPro, prop);
 	} else {
@@ -626,8 +626,8 @@ void extra_ph(double p, double h, double *t, double *d,
 	}
     } else if (p < tripl.p) {
 	if (h > 2460.0) {
-	    ph(PMIN, h, t, d, dp, dh, mPro, prop);
-	} else if (p < PMIN) {
+	    ph(PMIN_L, h, t, d, dp, dh, mPro, prop);
+	} else if (p < PMIN_L) {
 	    /* h = 2460, p = 1e-6 */
 	    td(251.1302297950, 8.628e-9, mPro, prop);
 	} else {
@@ -1227,7 +1227,7 @@ int valid_tp(double t, double p)
 {
     int val = 0;
 
-    if ((t < 260.0) || (t > 2500.0) || (p < PMIN) || (p > 3000.0)) {
+    if ((t < 260.0) || (t > 2500.0) || (p < PMIN_L) || (p > 3000.0)) {
 	return val;
     }
     if (p < 209.9) {
@@ -1369,7 +1369,7 @@ int valid_ph(double p, double h)
 {
     int val = 1;
 
-    if ((p < PMIN) || (p > 3000.0) || (h > 9950.0) || (h < 0.95 * p - 20.0)) {
+    if ((p < PMIN_L) || (p > 3000.0) || (h > 9950.0) || (h < 0.95 * p - 20.0)) {
 	val = 0;
     } else if ((p < tripl.p) && (h < 2460.0)) {
 	val = 0;
@@ -1427,7 +1427,7 @@ int valid_ps(double p, double s)
 {
     int val = 1;
 
-    if ((p < PMIN) || (p > 3000.0) || (s < 0.00045 * p - 0.28)) {
+    if ((p < PMIN_L) || (p > 3000.0) || (s < 0.00045 * p - 0.28)) {
 	val = 0;
     } else if (s > 11.0 - 0.47 * log(p)) {
 	val = 0;

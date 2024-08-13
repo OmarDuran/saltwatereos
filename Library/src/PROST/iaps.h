@@ -17,7 +17,7 @@
 #include "decl.h"
 
 #define IMAX 20        /* maximum number of iterations */
-#define PMIN 0.000001  /* minimum pressure */
+#define PMIN_L 0.000001  /* minimum pressure */
 
 
 /**********************/

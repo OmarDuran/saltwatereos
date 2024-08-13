@@ -152,6 +152,14 @@ extern "C"
     */
 
     extern void water_tp(double t, double p, double d, double dp, Prop *prop);
+    
+    /*
+        Offers maximum and minimum density to adjust d
+        during iteration to avoid multiple solutions of d(p, t).
+        For t <= crit.t region of state must be known
+        (d < 0.32189 means vapour state, liquid otherwise)
+     */
+    extern void adjust_tp(double t, double d, double *dmin, double *dmax);
 
     /*
       Computes properties for given temperature and pressure in the one-

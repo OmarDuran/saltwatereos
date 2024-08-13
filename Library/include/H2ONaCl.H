@@ -30,6 +30,7 @@ using namespace std;
 
 #ifdef USE_PROST
     #include "steam4.h"
+    #include "../src/PROST/iaps.h"
 #else 
 	#include "IAPWS-97.H"
 #endif 

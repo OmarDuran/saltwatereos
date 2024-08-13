@@ -515,7 +515,7 @@ namespace H2ONaCl
                     // robustness on flat regions or near critical point
                     // left interval expansion
                     bool a_predicate = PROP_a.H > H;
-                    while(PROP_a.H > H)
+                    while(PROP_a.H >= H)
                     {
                         T_a -= 0.01;
                         PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
@@ -531,8 +531,8 @@ namespace H2ONaCl
                     {
                         T_b += 0.01;
                         PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
-                        if(T_b > 900.0){
-                            T_b = 900;
+                        if(T_b > 1000.0){
+                            T_b = 1000.0;
                             break;
                         }
                     }
@@ -686,7 +686,7 @@ namespace H2ONaCl
                 prop.X_l = PROP_mid.X_l;
                 prop.X_v = PROP_mid.X_v;
 
-                if (fabs(res_H(PROP_mid.H)) < tol || fabs((T_b - T_a) / 2) < tol*tol) {
+                if (fabs(res_H(PROP_mid.H)) < tol || fabs((T_b - T_a) / 2) < tol) {
                     break;
                 }
                 
@@ -974,7 +974,10 @@ namespace H2ONaCl
         if(prop.Region==TwoPhase_L_V_X0) prop.S_v= NAN; 
         if(prop.Region==TwoPhase_L_V_X0) prop.S_h= 0; 
         if(prop.Region==TwoPhase_L_V_X0) prop.Rho = NAN; 
-        if(prop.Region==TwoPhase_L_V_X0) prop.H= NAN; 
+        if(prop.Region==TwoPhase_L_V_X0)
+        {
+            prop.H= NAN;
+        }
         
         prop.X_l = Xw_l;
         prop.X_v = Xw_v;
@@ -3029,6 +3032,15 @@ namespace H2ONaCl
             d = 0.0;
             water_tp(T_K,p,d,dp,prop0);
             d=prop0->d;
+            if (d == 0) { // Region near critical point
+                double dmin, dmax;
+                adjust_tp(T_K, d, &dmin, &dmax);
+                if (dmin <= 1.0e-15 and dmax != 1.8){
+                    d = dmax;
+                }else{
+                    d = dmin;
+                }
+            }
             // very very important!!!!
             prop0 = freeProp(prop0);
             return d;

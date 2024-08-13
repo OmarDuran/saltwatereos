@@ -207,7 +207,7 @@ namespace H2ONaCl
         init_prop(prop);
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
         double T1, T2;
-        double tol=1e-4;
+        double tol=1e-3;
         double T_scale_up = 1.5;
         double T_scale_down = 0.5;
         guess_T_PhX(p, H, X_wt, T1, T2);
@@ -266,25 +266,14 @@ namespace H2ONaCl
         {
             
             int iteri=0;
-            double T_new_mid=0;
-            //            double h_search=H;
             bool ind_iter=true;
-            //            bool indmu=true;
+            // Find new T with bisection method
             while (ind_iter)
             {
                 iteri = iteri +1;
-                // find new T with regular falsi method
+                
                 double T_new=0;
-                if(T_new_mid == 0)
-                {
-                    //                    double dT = (H - h1) * (T2 - T1) / (h2-h1);
-                    T_new = T1 +  (H - h1) * (T2 - T1) / (h2-h1); 
-                    T_new_mid = 1;
-                }else
-                {
-                    T_new = (T1 +  T2) / 2; 
-                    T_new_mid = 0; 
-                }
+                T_new = (T1 +  T2) / 2;
                 if (isnan(T_new))
                 {
                     cout<<"error, T_new is nan: "<<T_new<<endl;

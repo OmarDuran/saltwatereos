@@ -208,7 +208,11 @@ namespace H2ONaCl
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
         double T1, T2;
         double tol=1e-4;
+        double T_scale_up = 1.5;
+        double T_scale_down = 0.5;
         guess_T_PhX(p, H, X_wt, T1, T2);
+        T1 *= T_scale_down;
+        T2 *= T_scale_up;
         // cout<<"T1: "<<T1<<" T2: "<<T2<<endl;
         PROP_H2ONaCl prop1, prop2;
         prop1=prop_pTX(p,T1+Kelvin,X_wt, false); 
@@ -280,6 +284,11 @@ namespace H2ONaCl
                 {
                     T_new = (T1 +  T2) / 2; 
                     T_new_mid = 0; 
+                }
+                if (isnan(T_new))
+                {
+                    cout<<"error, T_new is nan: "<<T_new<<endl;
+                    exit(0);
                 }
                 // claculate new h
                 PROP_H2ONaCl PROP_new=prop_pTX(p,T_new+Kelvin,X_wt, false);
@@ -381,11 +390,6 @@ namespace H2ONaCl
                         PROP_new.Rho  = Rho_hm; 
                         PROP_new.H    = h_hm; 
                     }
-                }
-                if (isnan(T_new))
-                {
-                    cout<<"error, T_new->prop_pHX is nan: "<<T_new<<endl;
-                    exit(0);
                 }
                 
                 //  writing global storage
@@ -778,7 +782,7 @@ namespace H2ONaCl
     {
         P = P*1e-6;
         h = h*1e-3;
-        double tol = 1e-6;
+        double tol = 1e-4;
         double P_crit = 22.054915;   //MPa
         double P_creg = 21.839129;
 

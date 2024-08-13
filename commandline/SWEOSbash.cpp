@@ -192,7 +192,24 @@ namespace SWEOSbash
     }
     for (int i = 0; i < m_valueV.size(); i++)
     {
-      if(!(m_valueV[i]=='P' || m_valueV[i]=='T' || m_valueV[i]=='X' || m_valueV[i]=='H'))
+      bool l_haveP = m_valueV[i]=='P';
+      bool l_haveT = m_valueV[i]=='T';
+      bool l_haveX = m_valueV[i]=='X';
+      bool l_haveH = m_valueV[i]=='H';
+        if (l_haveP) {
+            m_haveP = true;
+        }
+        if (l_haveT) {
+            m_haveT = true;
+        }
+        if (l_haveX) {
+            m_haveX = true;
+        }
+        if (l_haveH) {
+            m_haveH = true;
+        }
+        
+      if(!(l_haveP || l_haveT || l_haveX || l_haveH))
       {
         cout<<ERROR_COUT<<"The option value of -V argument cannot be recognized, the supported variables are T, P, X, H"<<endl;
         return false;
@@ -967,12 +984,33 @@ namespace SWEOSbash
       cout<<ERROR_COUT<<"if -D set as -D0, the -V support [P,T,X] or [P,H,X]: "<<endl;
       return false;
     }
-    //single point calculation: PTX
-    if(m_valueV=="PTX" || m_valueV=="PXT" || m_valueV=="TPX" || m_valueV=="TXP" || m_valueV=="XPT" || m_valueV=="XPT")
+    //single point calculation: PTX ot PHX
+    std::vector<string> v;
+    v.push_back("PTX");
+    v.push_back("PXT");
+    v.push_back("TPX");
+    v.push_back("TXP");
+    v.push_back("XPT");
+    v.push_back("XPT");
+      
+    v.push_back("PHX");
+    v.push_back("PXH");
+    v.push_back("HPX");
+    v.push_back("HXP");
+    v.push_back("XPH");
+    v.push_back("XPH");
+    if (std::find(v.begin(), v.end(), m_valueV) != v.end())
     {
-      if(!m_haveT)
+      if(!m_haveT or !m_haveH)
       {
-        cout<<WARN_COUT<<"selected calculation mode is single point PTX, you must specify temperature by -T"<<endl;
+          if(!m_haveT and m_haveH)
+          {
+              cout<<WARN_COUT<<"selected calculation mode is single point PTX, you must specify temperature by -T"<<endl;
+          }
+          if(!m_haveH and m_haveT)
+          {
+              cout<<WARN_COUT<<"selected calculation mode is single point PHX, you must specify enthalpy by -H"<<endl;
+          }
       }
       if(!m_haveP)
       {
@@ -995,7 +1033,12 @@ namespace SWEOSbash
       {
         cout<<WARN_COUT<<"You specify a input file for multi-points calculation\n"
         <<"Please make sure your input file with 3 columns in order of "<<m_valueV<<endl;
-        calculateMultiPoints_PTX_PHX(m_valueV,m_valueG, m_valueO,"T");
+        if(m_haveT)
+        {
+          calculateMultiPoints_PTX_PHX(m_valueV,m_valueG, m_valueO,"T");
+        }else{
+          calculateMultiPoints_PTX_PHX(m_valueV,m_valueG, m_valueO,"H");
+        }
       }else
       {
         cout<<ERROR_COUT<<"There neither full -T, -P, -X options nor -G argument, swEOS will exit"<<endl;

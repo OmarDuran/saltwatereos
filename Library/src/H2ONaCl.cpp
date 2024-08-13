@@ -445,12 +445,14 @@ namespace H2ONaCl
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
         double tol=1e-3;
         
-        double T_scale_down = 0.95;
-        double T_scale_up = 1.05;
+        double T_scale_down = 0.5;
+        double T_scale_up = 1.5;
         double T1, T2;
         guess_T_PhX(p, H, X_wt, T1, T2);
         T1 *= T_scale_down;
-        T2 *= T_scale_up;
+        if (T2 < 1000 and T2 * T_scale_up <= 1000.0){
+            T2 *= T_scale_up;
+        }
         PROP_H2ONaCl prop1, prop2;
         prop1=prop_pTX(p,T1+Kelvin,X_wt, false);
         prop2=prop_pTX(p,T2+Kelvin,X_wt, false);
@@ -778,7 +780,7 @@ namespace H2ONaCl
     {
         P = P*1e-6;
         h = h*1e-3;
-        double tol = 1e-4;
+        double tol = 1e-6;
         double P_crit = 22.054915;   //MPa
         double P_creg = 21.839129;
 

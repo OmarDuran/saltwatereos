@@ -3034,11 +3034,12 @@ namespace H2ONaCl
             d=prop0->d;
             if (d == 0) { // Region near critical point
                 double dmin, dmax;
-                adjust_tp(T_K, d, &dmin, &dmax);
+                double density = d * 1.0e-3;
+                adjust_tp(T_K, density, &dmin, &dmax);
                 if (dmin <= 1.0e-15 and dmax != 1.8){
-                    d = dmax;
+                    d = dmax * 1.0e3;
                 }else{
-                    d = dmin;
+                    d = dmin * 1.0e3;
                 }
             }
             // very very important!!!!
@@ -3129,7 +3130,7 @@ namespace H2ONaCl
             }
             water_ph(p,h,T_K,d,dp,dh,prop0);
             double mu=viscos(prop0);
-            if(std::isnan(mu))
+            if(std::isnan(mu) or std::isinf(mu))
             {
                 Prop * propl = newProp('t', 'p', 1);
                 Prop * propv = newProp('t', 'p', 1);

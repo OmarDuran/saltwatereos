@@ -443,7 +443,7 @@ namespace H2ONaCl
         H2ONaCl::PROP_H2ONaCl prop;
         init_prop(prop);
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
-        double tol=1e-6;
+        double tol=1e-7;
         
         double T_scale_down = 0.5;
         double T_scale_up = 1.5;

@@ -999,7 +999,7 @@ namespace SWEOSbash
     v.push_back("HXP");
     v.push_back("XPH");
     v.push_back("XPH");
-    if (std::find(v.begin(), v.end(), m_valueV) != v.end())
+    if (std::find(v.begin(), v.end(), std::string(m_valueV)) != v.end())
     {
       if(!m_haveT or !m_haveH)
       {

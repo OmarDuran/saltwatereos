@@ -985,7 +985,7 @@ namespace SWEOSbash
       return false;
     }
     //single point calculation: PTX ot PHX
-    std::vector<string> v;
+    std::vector<std::string> v;
     v.push_back("PTX");
     v.push_back("PXT");
     v.push_back("TPX");

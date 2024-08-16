@@ -2377,7 +2377,7 @@ namespace H2ONaCl
         {
             for(int i=0;i<z.size();i++)fpout<<z[i]<<" ";fpout<<endl;
         }
-        float eps_tol = 1.0e-10;
+        float eps_tol = 1.0e-6;
         fpout<<"POINT_DATA "<<props.size()<<endl;
         // 1. phase region
         fpout<<"SCALARS PhaseRegion int"<<endl;
@@ -2462,7 +2462,7 @@ namespace H2ONaCl
             if(fabs(props[i].S_l) < eps_tol){
                 fpout<<props[i].H<<" ";
             }else{
-                fpout<<props[i].H_l<<" ";
+                fpout<<props[i].H<<" ";
             }
         }fpout<<endl;
         // 7. H_v
@@ -2473,7 +2473,7 @@ namespace H2ONaCl
             if(fabs(props[i].S_v) < eps_tol){
                 fpout<<props[i].H<<" ";
             }else{
-                fpout<<props[i].H_v<<" ";
+                fpout<<props[i].H<<" ";
             }
         }fpout<<endl;
         // 8. H_h
@@ -2484,7 +2484,7 @@ namespace H2ONaCl
             if(fabs(props[i].S_h) < eps_tol){
                 fpout<<props[i].H<<" ";
             }else{
-                fpout<<props[i].H_h<<" ";
+                fpout<<props[i].H<<" ";
             }
         }fpout<<endl;
         // 9. S_l

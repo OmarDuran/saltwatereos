@@ -4,6 +4,7 @@
 #include "getopt.h"
 #include <sstream>
 #include <iostream>
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <vector>

@@ -942,17 +942,20 @@ namespace H2ONaCl
         //  Calculate saturation of liquid in L+V region
         if(prop.Region==TwoPhase_V_L_L | prop.Region==TwoPhase_V_L_V)
         {
-            prop.S_l = (prop.Rho_v *(Xw_v - Xw))/(prop.Rho_v*(Xw_v-Xw) + prop.Rho_l *(Xw-Xw_l)); 
+            double beta_l = (prop.Rho_v *(Xw_v - Xw))/(prop.Rho_v*(Xw_v-Xw) + prop.Rho_l *(Xw-Xw_l));
+            prop.S_l = (beta_l * prop.Rho_l) / (beta_l * prop.Rho_l + (1.0-beta_l) * prop.Rho_v);
         }
         // Calculate saturation of halite in V+H region
         if(prop.Region==TwoPhase_V_H)
         {
-            prop.S_h = (prop.Rho_v*(Xw_v-Xw))/(prop.Rho_h*(Xw-1) + prop.Rho_v*(Xw_v-Xw));
+            double beta_h = (prop.Rho_v*(Xw_v-Xw))/(prop.Rho_h*(Xw-1) + prop.Rho_v*(Xw_v-Xw));
+            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0-beta_h) * prop.Rho_v);
         }
         //  Calculate saturation of halite in L+H region  % does not work for X = 1
         if(prop.Region==TwoPhase_L_H)
         {
-            prop.S_h = (prop.Rho_l*(Xw_l-Xw))/(prop.Rho_h*(Xw-1) + prop.Rho_l*(Xw_l-Xw));
+            double beta_h = (prop.Rho_l*(Xw_l-Xw))/(prop.Rho_h*(Xw-1) + prop.Rho_l*(Xw_l-Xw));
+            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0-beta_h) * prop.Rho_l);
         }
         
         if(prop.Region==SinglePhase_V) prop.S_v= 1;

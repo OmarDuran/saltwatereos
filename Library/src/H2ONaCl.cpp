@@ -443,7 +443,7 @@ namespace H2ONaCl
         H2ONaCl::PROP_H2ONaCl prop;
         init_prop(prop);
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
-        double tol=1e-7;
+        double tol=1e-8;
         
         double T_scale_down = 0.5;
         double T_scale_up = 1.5;
@@ -2511,8 +2511,8 @@ namespace H2ONaCl
         {
             fpout<<props[i].S_h<<" ";
         }fpout<<endl;
-        auto mu_mix = [](float sl, float mu_l, float sv, float mu_v) -> float {
-            float mu = sl * mu_l + sv * mu_v + sv * mu_v;
+        auto mu_mix = [](float sl, float mu_l, float Rho_l, float sv, float mu_v, float Rho_v, float Rho) -> float {
+            float mu = (sl * mu_l * Rho_l + sv * mu_v * Rho_v) / Rho;
             return mu;
         };
         // liquid viscosity
@@ -2521,7 +2521,7 @@ namespace H2ONaCl
         for(int i=0;i<props.size();i++)
         {
             if(fabs(props[i].S_l) < eps_tol){
-                float mu_mix_val = mu_mix(props[i].S_l,props[i].Mu_l,props[i].S_v,props[i].Mu_v);
+                float mu_mix_val = mu_mix(props[i].S_l,props[i].Mu_l, props[i].Rho_l,props[i].S_v,props[i].Mu_v,props[i].Rho_v,props[i].Rho);
                 fpout<<mu_mix_val<<" ";
             }else{
                 fpout<<props[i].Mu_l<<" ";
@@ -2532,8 +2532,8 @@ namespace H2ONaCl
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            if(fabs(props[i].S_v) < 1.0e-10){
-                float mu_mix_val = mu_mix(props[i].S_l,props[i].Mu_l,props[i].S_v,props[i].Mu_v);
+            if(fabs(props[i].S_v) < eps_tol){
+                float mu_mix_val = mu_mix(props[i].S_l,props[i].Mu_l, props[i].Rho_l,props[i].S_v,props[i].Mu_v,props[i].Rho_v,props[i].Rho);
                 fpout<<mu_mix_val<<" ";
             }else{
                 fpout<<props[i].Mu_v<<" ";

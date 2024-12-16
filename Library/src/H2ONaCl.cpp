@@ -2382,49 +2382,49 @@ namespace H2ONaCl
         }
         float eps_tol = 1.0e-10;
         fpout<<"POINT_DATA "<<props.size()<<endl;
-        // 1. phase region
+        // 1. Phase region
         fpout<<"SCALARS PhaseRegion int"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].Region<<" ";
         }fpout<<endl;
-        // temperature
+        // 2. Temperature
         fpout<<"SCALARS Temperature double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].T+Kelvin<<" ";
         }fpout<<endl;
-        // 2. bulk Rho 
+        // 3. Bulk Rho
         fpout<<"SCALARS Rho double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].Rho<<" ";
         }fpout<<endl;
-        // 2. bulk H 
+        // 4. Bulk H
         fpout<<"SCALARS H double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].H<<" ";
         }fpout<<endl;
-        // 2. Xl 
+        // 5. Xl
         fpout<<"SCALARS Xl double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].X_l<<" "; 
         }fpout<<endl;
-        // 2. Xv
+        // 6. Xv
         fpout<<"SCALARS Xv double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].X_v<<" ";
         }fpout<<endl;
-        // 3. Rho_l
+        // 7. Rho_l
         fpout<<"SCALARS Rho_l double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
@@ -2435,7 +2435,7 @@ namespace H2ONaCl
                 fpout<<props[i].Rho_l<<" ";
             }
         }fpout<<endl;
-        // 4. Rho_v
+        // 8. Rho_v
         fpout<<"SCALARS Rho_v double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
@@ -2446,7 +2446,7 @@ namespace H2ONaCl
                 fpout<<props[i].Rho_v<<" ";
             }
         }fpout<<endl;
-        // 5. Rho_h
+        // 9. Rho_h
         fpout<<"SCALARS Rho_h double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
@@ -2457,7 +2457,7 @@ namespace H2ONaCl
                 fpout<<props[i].Rho_h<<" ";
             }
         }fpout<<endl;
-        // 6. H_l
+        // 10. H_l
         fpout<<"SCALARS H_l double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
@@ -2468,7 +2468,7 @@ namespace H2ONaCl
                 fpout<<props[i].H_l<<" ";
             }
         }fpout<<endl;
-        // 7. H_v
+        // 11. H_v
         fpout<<"SCALARS H_v double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
@@ -2479,7 +2479,7 @@ namespace H2ONaCl
                 fpout<<props[i].H_v<<" ";
             }
         }fpout<<endl;
-        // 8. H_h
+        // 12. H_h
         fpout<<"SCALARS H_h double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
@@ -2490,21 +2490,21 @@ namespace H2ONaCl
                 fpout<<props[i].H_h<<" ";
             }
         }fpout<<endl;
-        // 9. S_l
+        // 13. S_l
         fpout<<"SCALARS S_l double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].S_l<<" ";
         }fpout<<endl;
-        // 10. S_v
+        // 14. S_v
         fpout<<"SCALARS S_v double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
             fpout<<props[i].S_v<<" ";
         }fpout<<endl;
-        // 11. S_h
+        // 15. S_h
         fpout<<"SCALARS S_h double"<<endl;
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)

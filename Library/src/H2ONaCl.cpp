@@ -443,10 +443,10 @@ namespace H2ONaCl
         H2ONaCl::PROP_H2ONaCl prop;
         init_prop(prop);
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
-        double tol=1e-8;
+        double tol=1e-10;
         
-        double T_scale_down = 0.5;
-        double T_scale_up = 1.5;
+        double T_scale_down = 0.25;
+        double T_scale_up = 1.75;
         double T1, T2;
         guess_T_PhX(p, H, X_wt, T1, T2);
         T1 *= T_scale_down;
@@ -517,7 +517,7 @@ namespace H2ONaCl
                     bool a_predicate = PROP_a.H > H;
                     while(PROP_a.H >= H)
                     {
-                        T_a -= 0.005;
+                        T_a -= 0.0025;
                         PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
                         if(T_a < 0.0){
                             T_a = 0.0;
@@ -529,7 +529,7 @@ namespace H2ONaCl
                     bool b_predicate = PROP_b.H < H;
                     while(PROP_b.H < H)
                     {
-                        T_b += 0.005;
+                        T_b += 0.0025;
                         PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
                         if(T_b > 1000.0){
                             T_b = 1000.0;

@@ -714,8 +714,7 @@ namespace H2ONaCl
             exit(0);
         }
         // calculate dynamic viscosity
-//        calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
-        calcViscosity_ph(prop.Region, p, H, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
+        calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
 
         return prop;
     }

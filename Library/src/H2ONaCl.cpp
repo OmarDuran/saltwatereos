@@ -443,7 +443,7 @@ namespace H2ONaCl
         H2ONaCl::PROP_H2ONaCl prop;
         init_prop(prop);
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
-        double tol=1e-10;
+        double tol=1e-8;
         
         double T_scale_down = 0.25;
         double T_scale_up = 1.75;
@@ -492,7 +492,7 @@ namespace H2ONaCl
         else
         {
             
-            int max_iter=1000;
+            int max_iter=1500;
             int iteri = 0;
             // find the temperature with bisection method
             auto res_H = [&H](float H_star) -> float {

@@ -2912,7 +2912,7 @@ namespace H2ONaCl
     double cH2ONaCl::water_mu_pT(double p, double T_K)
     {
         #ifdef USE_PROST
-            double d = 0.0, dp = 1.0e-8;
+            double d = 0.0, dp = 1.0e-8, dt = 1.0e-5;
             Prop *prop0 = newProp('t', 'p', 1);
             
             // 1. Initial attempt
@@ -2930,18 +2930,18 @@ namespace H2ONaCl
                 double Tsat = propl->T;
 
                 // Robust check: are we on the vapor side or liquid side?
-                if (T_K > Tsat - 0.01) {
+                if (T_K > Tsat - dt) {
                     // VAPOR SIDE:
                     // Shift T_K slightly up to ensure we are outside the dome
                     // and force the library to use the superheated steam correlations.
-                    double T_force = std::max(T_K, Tsat + 0.01);
+                    double T_force = std::max(T_K, Tsat + dt);
                     water_tp(T_force, p, d, dp, propv);
                     mu = viscos(propv);
                 }
                 else {
                     // LIQUID SIDE:
                     // Force shift down
-                    double T_force = std::min(T_K, Tsat - 0.01);
+                    double T_force = std::min(T_K, Tsat - dt);
                     water_tp(T_force, p, d, dp, propl);
                     mu = viscos(propl);
                 }

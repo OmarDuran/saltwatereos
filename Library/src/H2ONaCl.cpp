@@ -2426,202 +2426,134 @@ namespace H2ONaCl
         return sum;
     };
 
-    void cH2ONaCl:: calcRho(int reg, double T_in, double P_in, double X_l, double X_v, double& Rho_l, double& Rho_v, double& Rho_h,
-                        double& V_l_out, double& V_v_out, double& T_star_l_out, double& T_star_v_out,
-                        double& n1_v_out, double& n2_v_out)
-    {
-        P_in = P_in/1e5; //Pa to bar
-        Rho_l = 0;
-        Rho_v = 0;
-        Rho_h = 0;
+  void cH2ONaCl::calcRho(int reg, double T_in, double P_in, double X_l, double X_v,
+                         double& Rho_l, double& Rho_v, double& Rho_h,
+                         double& V_l_out, double& V_v_out, double& T_star_l_out, double& T_star_v_out,
+                         double& n1_v_out, double& n2_v_out)
+  {
+      const double P_bar = P_in / 1e5; // Input pressure in bar for scaling
+      const double P_Pa  = P_in;       // Input pressure in Pa for baseline
+      const double mass_h2o = 18.01528 / 1e3; // kg/mol
+      const double mass_salt = 58.443 / 1e3;  // kg/mol
+      const double P_crit_pure = 220.55;      // bar
 
-        V_l_out = 0;
-        T_star_l_out = 0;
-        V_v_out = 0;
-        T_star_v_out = 0;
+      // Initialize outputs
+      Rho_l = 0; Rho_v = 0; Rho_h = 0;
+      V_l_out = 0; V_v_out = 0; T_star_l_out = 0; T_star_v_out = 0;
 
-        n1_v_out = 0;
-        n2_v_out = 0;
+      // Helper: Driesner T* Scaling Logic
+      auto get_T_star_params = [&](double P, double X, double& Ts) {
+          double n11 = -54.2958 - 45.7623 * exp(-9.44785e-4 * P);
+          double n21 = -2.6142 - 0.000239092 * P;
+          double n22 = 0.0356828 + 4.37235e-6 * P + 2.0566e-9 * pow(P, 2);
+          double n20 = 1.0 - n21 * sqrt(n22);
+          
+          double n1_1 = 330.47 + 0.942876 * sqrt(P) + 0.0817193 * P - 2.47556e-8 * pow(P, 2) + 3.45052e-10 * pow(P, 3);
+          double n10 = n1_1;
+          double n2_1 = -0.0370751 + 0.00237723 * sqrt(P) + 5.42049e-5 * P + 5.84709e-9 * pow(P, 2) - 5.99373e-13 * pow(P, 3);
+          
+          double n23 = n2_1 - n20 - n21 * sqrt(1.0 + n22);
+          double n12 = -n10 - n11;
 
-        const double mass_h2o = 18.015/1e3;
-        const double mass_salt = 58.443/1e3;
-        const double P_crit = 220.5491;  //[bar]
-        //Fitting parameters to calculate T*
-        double n11  = -54.2958 - 45.7623*exp(-9.44785e-4*P_in);
-        double n21  = -2.6142 - 0.000239092*P_in;
-        double n22  = 0.0356828 + 4.37235e-6*P_in + 2.0566e-9*pow(P_in,2);
-//        double n300 = 7.60664e6/pow((P_in + 472.051),2);
-//        double n301 = -50 - 86.1446*exp(-6.21128e-4*P_in);
-//        double n302 = 294.318*exp(-5.66735e-3*P_in);
-//        double n310 = (-0.0732761*exp(-2.3772e-3*P_in)) - 5.2948e-5*P_in;
-//        double n311 = -47.2747 + 24.3653*exp(-1.25533e-3*P_in);
-//        double n312 = -0.278529 + 0.00081381*P_in;
-        double n20  = 1 - n21*sqrt(n22);
-        double n1_1 = 330.47 + 0.942876*sqrt(P_in) + 0.0817193*P_in - 2.47556e-8*pow(P_in,2) + 3.45052e-10*pow(P_in,3);
-        double n10  = n1_1;
-        double n2_1 = -0.0370751 + 0.00237723*sqrt(P_in) + 5.42049e-5*P_in + 5.84709e-9*pow(P_in,2) - 5.99373e-13*pow(P_in,3);
-        double n23  = n2_1 - n20 - n21*sqrt((1+n22));
-        double n12  = - n10 - n11;
-        //
-        bool ind_lv=(reg==TwoPhase_L_V_X0);
-        bool ind_v=(reg==SinglePhase_V || reg==TwoPhase_V_H || reg==ThreePhase_V_L_H || reg==TwoPhase_V_L_L || reg==TwoPhase_V_L_V);
-        bool ind_l=(reg==SinglePhase_L || reg==TwoPhase_L_H || reg==ThreePhase_V_L_H || reg==TwoPhase_V_L_L || reg==TwoPhase_V_L_V);
-        bool ind_h=(reg==TwoPhase_L_H || reg==TwoPhase_V_H || reg==ThreePhase_V_L_H);
-        // cout<<"ind_lv: "<<ind_lv<<" ind_v: "<<ind_v<<" ind_l: "<<ind_l<<" ind_h: "<<ind_h<<endl;
-        if(ind_lv)
-        {
-            double T_2ph0, h_l0, h_v0, dpd_l0, dpd_v0, Mu_l0, Mu_v0;
-            fluidProp_crit_P(P_in*1e5, 1e-12, T_2ph0, Rho_l, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
-        }
-        if(ind_v)
-        {
-            double mass_sol_v = mass_h2o*(1-X_v) + mass_salt*X_v;
-            double n1_v = n10 + n11*(1-X_v) + n12*pow((1-X_v),2);
-            double n2_v = n20 + n21*sqrt(X_v+n22) + n23*X_v;
-            double T_star_v = n1_v + n2_v*T_in; // + D_v;  %only for low pres
-            double P_star_v = P_in;
-            // double Rho_star_l=water_tp_IAPS84(P_star_v*1e5, T_star_v, 50,dRhodP, h, Mu, 1e-9, true);
-            // SteamState S = freesteam_set_pT(P_star_v*1e5, T_star_v+Kelvin);
-            // double Rho_star_v=freesteam_rho(S);
-            double Rho_star_v=water_rho_pT(P_star_v*1e5, T_star_v+Kelvin);
-            bool ind1 = (Rho_star_v > 321.89 && P_star_v <= P_crit);
-            bool ind2 = (std::isnan(Rho_star_v) && P_star_v <= P_crit);
-            while (ind1 || ind2)
-            {
-                double T_2ph, Rho_l, h_l, h_v, dpd_l, dpd_v, Rho_star_v, Mu_l, Mu_v;
-                fluidProp_crit_P(P_star_v*1e5,1e-12,T_2ph, Rho_l, h_l, h_v, dpd_l, dpd_v, Rho_star_v, Mu_l, Mu_v);
-                ind1 = (Rho_star_v > 321.89 && P_star_v <= P_crit);
-                ind2 = (std::isnan(Rho_star_v) && P_star_v <= P_crit);
-            }
-            double Vol_v = 1./Rho_star_v;
-            double V_v = Vol_v*mass_h2o;
+          double n1 = n10 + n11 * (1.0 - X) + n12 * pow((1.0 - X), 2);
+          double n2 = n20 + n21 * sqrt(X + n22) + n23 * X;
+          
+          Ts = n1 + n2 * T_in;
+          return std::make_pair(n1, n2);
+      };
 
-            Rho_v = (mass_sol_v/V_v);
-            
-            V_v_out = V_v;
-            T_star_v_out = T_star_v;
-            n1_v_out = n1_v;
-            n2_v_out = n2_v;
-        }
-        if(ind_l)
-        {
-            double mass_sol_l = mass_h2o*(1-X_l) + mass_salt*X_l;
+      // Phase Boolean Flags
+      bool ind_lv = (reg == TwoPhase_L_V_X0);
+      bool ind_v  = (reg == SinglePhase_V || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+      bool ind_l  = (reg == SinglePhase_L || reg == TwoPhase_L_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+      bool ind_h  = (reg == TwoPhase_L_H || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H);
 
-            double n1_l = n10 + n11*(1-X_l) + n12*pow((1-X_l),2);
-            double n2_l = n20 + n21*sqrt(X_l+n22) + n23*X_l;
-            double T_star_l = n1_l + n2_l*T_in; // + D_l; %only for low pres
-            double P_star_l = P_in;
-            // SteamState S = freesteam_set_pT(P_star_l*1e5, T_star_l+Kelvin);
-            // double Rho_star_l=freesteam_rho(S);
-            double Rho_star_l=water_rho_pT(P_star_l*1e5, T_star_l+Kelvin);
-            // cout<<"P_star_l: "<<P_star_l<<" T_star_l: "<<T_star_l<<" Rho_star_l: "<<Rho_star_l<<endl;
-            double Vol = 1/Rho_star_l;
-            double V_l = Vol*mass_h2o;
-            bool ind_low=( (Rho_star_l < 321.89 || std::isnan(Rho_star_l)) && P_star_l <= P_crit );
-            if(ind_low)
-            {
-                // [ T_crit, Rho_star_crit_l, ~, ~, ~, ~ ] = fluidprop_crit_P( P_star_l(ind_low)*1e5 , 1e-9 );  % P_star_l = P_l
-                double T_crit, Rho_star_crit_l, h_l, h_v, dpd_l, dpd_v, Rho_v, Mu_l, Mu_v;
-                fluidProp_crit_P(P_star_l*1e5,1e-9,T_crit, Rho_star_crit_l, h_l, h_v, dpd_l, dpd_v, Rho_v, Mu_l, Mu_v);
-                double Vol_l_crit = mass_h2o / Rho_star_crit_l;
-                // S = freesteam_set_pT(P_star_l*1e5, T_crit-1+Kelvin);
-                // double Rho_star_crit_l_minus=freesteam_rho(S);
-                double Rho_star_crit_l_minus=water_rho_pT(P_star_l*1e5, T_crit-1+Kelvin);
-                double Vol_l_crit_minus = mass_h2o / Rho_star_crit_l_minus;
-                double dVol_ldT = (Vol_l_crit - Vol_l_crit_minus)/1;
-                double o1 = dVol_ldT ; //- 3*o2 * T_crit.^2;
-                double o0 = Vol_l_crit - o1 * T_crit ;//- o2 * T_crit.^3;
-                double V_l_low = o0 + o1 *  T_star_l ;// + o2 *  T_star_l(ind_low).^3;
-                V_l = V_l_low;
-            }
-            bool ind_high=((T_in >=600) && (P_in < 390.147) && (X_l > 0.1));
-            if(ind_high)
-            {
-                double P_390 = 390.147;
-                double n11_P  = -54.2958 - 45.7623*exp(-9.44785e-4*P_390);
-                double n21_P  = -2.6142 - 0.000239092*P_390;
-                double n22_P  = 0.0356828 + 4.37235e-6*P_390 + 2.0566e-9*pow(P_390,2);
-                double n20_P  = 1 - n21_P*sqrt(n22_P);
-                double n1_1_P = 330.47 + 0.942876*sqrt(P_390) + 0.0817193*P_390 - 2.47556e-8*pow(P_390,2) + 3.45052e-10*pow(P_390,3);
-                double n10_P  = n1_1_P;
-                double n2_1_P = -0.0370751 + 0.00237723*sqrt(P_390) + 5.42049e-5*P_390 + 5.84709e-9*pow(P_390,2) - 5.99373e-13*pow(P_390,3);
-                double n23_P  = n2_1_P - n20_P - n21_P*sqrt((1+n22_P));
-                double n12_P  = - n10_P - n11_P;
-                double X_l_ind_l = X_l;
-                double n1_l_P = n10_P + n11_P*(1-X_l_ind_l) + n12_P*pow((1-X_l_ind_l),2);
-                double n2_l_P = n20_P + n21_P*sqrt(X_l_ind_l+n22_P) + n23_P*X_l_ind_l;
-                double T_in_ind_l = T_in;
-                double T_star_l_P = n1_l_P + n2_l_P*T_in_ind_l;
-                double P_400 = 400;
-                double n11_P4  = -54.2958 - 45.7623*exp(-9.44785e-4*P_400);
-                double n21_P4  = -2.6142 - 0.000239092*P_400;
-                double n22_P4  = 0.0356828 + 4.37235e-6*P_400 + 2.0566e-9*pow(P_400,2);
-                double n20_P4  = 1 - n21_P4*sqrt(n22_P4);
-                double n1_1_P4 = 330.47 + 0.942876*sqrt(P_400) + 0.0817193*P_400 - 2.47556e-8*pow(P_400,2) + 3.45052e-10*pow(P_400,3);
-                double n10_P4  =  n1_1_P4;
-                double n2_1_P4 = -0.0370751 + 0.00237723*sqrt(P_400) + 5.42049e-5*P_400 + 5.84709e-9*pow(P_400,2) - 5.99373e-13*pow(P_400,3);
-                double n23_P4  = n2_1_P4 - n20_P4 - n21_P4*sqrt((1+n22_P4));
-                double n12_P4  = - n10_P4 - n11_P4;
-                X_l_ind_l = X_l;
-                double n1_l_P4 = n10_P4 + n11_P4*(1-X_l_ind_l) + n12_P4*pow((1-X_l_ind_l),2);
-                double n2_l_P4 = n20_P4 + n21_P4*sqrt(X_l_ind_l+n22_P4) + n23_P4*X_l_ind_l;
-                T_in_ind_l = T_in;
-                double T_star_l_P4 = n1_l_P4 + n2_l_P4*T_in_ind_l;
-                double P_1000 = 1000;
-                double n11_P1  = -54.2958 - 45.7623*exp(-9.44785e-4*P_1000);
-                double n21_P1  = -2.6142 - 0.000239092*P_1000;
-                double n22_P1  = 0.0356828 + 4.37235e-6*P_1000 + 2.0566e-9*pow(P_1000,2);
-                double n20_P1  = 1 - n21_P1*sqrt(n22_P);
-                double n1_1_P1 = 330.47 + 0.942876*sqrt(P_1000) + 0.0817193*P_1000 - 2.47556e-8*pow(P_1000,2) + 3.45052e-10*pow(P_1000,3);
-                double n10_P1  =  n1_1_P1;
-                double n2_1_P1 = -0.0370751 + 0.00237723*sqrt(P_1000) + 5.42049e-5*P_1000 + 5.84709e-9*pow(P_1000,2) - 5.99373e-13*pow(P_1000,3);
-                double n23_P1  = n2_1_P1 - n20_P1 - n21_P1*sqrt((1+n22_P1));
-                double n12_P1  = - n10_P1 - n11_P1;
-                X_l_ind_l = X_l;
-                double n1_l_P1 = n10_P1 + n11_P1*(1-X_l_ind_l) + n12_P1*pow((1-X_l_ind_l),2);
-                double n2_l_P1 = n20_P1 + n21_P1*sqrt(X_l_ind_l+n22_P1) + n23_P1*X_l_ind_l;
-                T_in_ind_l = T_in;
-                double T_star_l_P1 = n1_l_P1 + n2_l_P1*T_in_ind_l;
-                // S = freesteam_set_pT(P_390*1e5, T_star_l_P+Kelvin);
-                // double Rho_l_390=freesteam_rho(S);
-                double Rho_l_390=water_rho_pT(P_390*1e5, T_star_l_P+Kelvin);
-                double Vol_390 = mass_h2o / Rho_l_390;
-                // S = freesteam_set_pT(P_400*1e5, T_star_l_P4+Kelvin);
-                // double Rho_l_400=freesteam_rho(S);
-                double Rho_l_400=water_rho_pT(P_400*1e5, T_star_l_P4+Kelvin);
-                double Vol_400 = mass_h2o / Rho_l_400;
-                // S = freesteam_set_pT(P_1000*1e5, T_star_l_P1+Kelvin);
-                // double Rho_l_1000=freesteam_rho(S);
-                double Rho_l_1000=water_rho_pT(P_1000*1e5, T_star_l_P1+Kelvin);
-                double Vol_1000 = mass_h2o / Rho_l_1000;
-                double dVol_dP = (Vol_400 - Vol_390) / (P_400 - P_390);
+      // 1. PURE WATER TWO-PHASE (X=0)
+      if (ind_lv) {
+          double T_2ph0, h_l0, h_v0, dpd_l0, dpd_v0, Mu_l0, Mu_v0;
+          fluidProp_crit_P(P_Pa, 1e-12, T_2ph0, Rho_l, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
+      }
 
-                double P_610 = P_1000 - P_390;
-                double P_1390 = P_1000 + P_390;
-                double o4 = ( - Vol_390 + Vol_1000 - dVol_dP * (P_610) )/ ( - log(P_1390) + log( 2*P_1000 ) - (P_610/P_1390) ) ;
-                double o5 = dVol_dP - o4 / P_1390;
-                double o3 = Vol_390 - o4 * log(P_1390) - o5 * P_390;
-                double V_l_ind_high = o3 + o4 * log(P_star_l+P_1000) + o5 * P_star_l;
-                V_l = V_l_ind_high;
-            }
-            Rho_l = (mass_sol_l/V_l);
-            V_l_out = V_l;
-            T_star_l_out = T_star_l;
-            // cout<<"Rho_l: "<<Rho_l<<" V_l_out: "<<V_l_out<<" T_star_l_out: "<<T_star_l_out<<endl;
-        }
-        if(ind_h)
-        {
-            double l0  = 2.1704e3;
-            double l1  = -2.4599e-1;
-            double l2  = -9.5797e-5;
-            double l3  = 5.727e-3;
-            double l4  = 2.715e-3;
-            double l5  = 733.4;
-            double l = l3 + l4*exp(T_in/l5);
-            double Rho0_h = l0 + l1*(T_in) + l2*pow(T_in,2);
-            Rho_h = Rho0_h + l*P_in;
-        }
-    }
+      // 2. VAPOR PHASE RHO
+      if (ind_v && !ind_lv) {
+          double m_sol_v = mass_h2o * (1.0 - X_v) + mass_salt * X_v;
+          double Ts_v;
+          auto params = get_T_star_params(P_bar, X_v, Ts_v);
+          
+          T_star_v_out = Ts_v;
+          n1_v_out = params.first; n2_v_out = params.second;
+
+          // Use the robust density lookup (Vapor branch)
+          double Rho_star_v = water_rho_pT(P_Pa, Ts_v + Kelvin);
+
+          // Fallback for critical proximity
+          if (std::isnan(Rho_star_v) || Rho_star_v <= 0) {
+              double T_2ph, rl, hl, hv, dl, dv, rv, ml, mv;
+              fluidProp_crit_P(P_Pa, 1e-12, T_2ph, rl, hl, hv, dl, dv, rv, ml, mv);
+              Rho_star_v = rv;
+          }
+
+          double V_v_mol = mass_h2o / Rho_star_v; // molar volume
+          Rho_v = m_sol_v / V_v_mol;
+          V_v_out = V_v_mol;
+      }
+
+      // 3. LIQUID PHASE RHO
+      if (ind_l && !ind_lv) {
+          double m_sol_l = mass_h2o * (1.0 - X_l) + mass_salt * X_l;
+          double Ts_l;
+          get_T_star_params(P_bar, X_l, Ts_l);
+          T_star_l_out = Ts_l;
+
+          // Standard Liquid Density Lookup
+          double Rho_star_l = water_rho_pT(P_Pa, Ts_l + Kelvin);
+          double V_l_mol = mass_h2o / Rho_star_l;
+
+          // Low Pressure / Sub-critical Correction
+          if ((Rho_star_l < 321.89 || std::isnan(Rho_star_l)) && P_bar <= P_crit_pure) {
+              double T_crit, rl_crit, hl, hv, dl, dv, rv, ml, mv;
+              fluidProp_crit_P(P_Pa, 1e-9, T_crit, rl_crit, hl, hv, dl, dv, rv, ml, mv);
+              
+              double rl_minus = water_rho_pT(P_Pa, (T_crit - 1.0) + Kelvin);
+              double dV_dT = (mass_h2o/rl_crit - mass_h2o/rl_minus);
+              V_l_mol = mass_h2o/rl_crit + dV_dT * (Ts_l - T_crit);
+          }
+
+          // High Temp / Low Pressure Extrapolation (Driesner Eq. 18)
+          if (T_in >= 600.0 && P_bar < 390.147 && X_l > 0.1) {
+              // Logarithmic extrapolation logic to avoid divergence
+              double Ts_390, Ts_400, Ts_1000;
+              get_T_star_params(390.147, X_l, Ts_390);
+              get_T_star_params(400.0, X_l, Ts_400);
+              get_T_star_params(1000.0, X_l, Ts_1000);
+
+              double V_390 = mass_h2o / water_rho_pT(390.147e5, Ts_390 + Kelvin);
+              double V_400 = mass_h2o / water_rho_pT(400.0e5, Ts_400 + Kelvin);
+              double V_1000 = mass_h2o / water_rho_pT(1000.0e5, Ts_1000 + Kelvin);
+
+              double dV_dP = (V_400 - V_390) / 9.853;
+              double P_off = 1000.0;
+              double o4 = (V_1000 - V_390 - dV_dP * (1000.0 - 390.147)) /
+                          (log((1000.0 + P_off) / (390.147 + P_off)) - (1000.0 - 390.147) / (390.147 + P_off));
+              double o5 = dV_dP - o4 / (390.147 + P_off);
+              double o3 = V_390 - o4 * log(390.147 + P_off) - o5 * 390.147;
+
+              V_l_mol = o3 + o4 * log(P_bar + P_off) + o5 * P_bar;
+          }
+
+          Rho_l = m_sol_l / V_l_mol;
+          V_l_out = V_l_mol;
+      }
+
+      // 4. HALITE RHO
+      if (ind_h) {
+          const double l0 = 2170.4, l1 = -0.24599, l2 = -9.5797e-5;
+          const double l3 = 5.727e-3, l4 = 2.715e-3, l5 = 733.4;
+          double compress = l3 + l4 * exp(T_in / l5);
+          double Rho0_h = l0 + l1 * T_in + l2 * pow(T_in, 2);
+          Rho_h = Rho0_h + compress * P_bar;
+      }
+  }
 
     void cH2ONaCl::calcEnthalpy(int reg, double T_in, double P_in, double X_l, double X_v,
                                 double& h_l, double& h_v, double& h_h)

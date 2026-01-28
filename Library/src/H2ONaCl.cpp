@@ -2950,7 +2950,9 @@ namespace H2ONaCl
             if (std::isnan(T_star_l)) T_star_l = T;
             T_star_l = std::max(0.01, std::min(T_star_l, 1000.0)); // Clamp to water library limits
 
-            mu_l = water_mu_pT(P, T_star_l + Kelvin);
+            if (T_star_l > 0) {
+              mu_l = water_mu_pT(P, T_star_l + Kelvin);
+            }
 
             // Fallback to critical solver if library returns NaN or non-physical value
             if (std::isnan(mu_l) || mu_l <= 0) {

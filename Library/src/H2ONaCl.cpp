@@ -2923,100 +2923,112 @@ namespace H2ONaCl
         }
     }
 
-    void cH2ONaCl:: calcViscosity(int reg, double P, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v)
+    void cH2ONaCl::calcViscosity(int reg, double P, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v)
     {
-        double a1 = -35.9858;
-        double a2 = 0.80017;
-        double b1 = 1e-6;
-        double b2 = -0.05239;
-        double b3 = 1.32936;
-        mu_l = 0;
-        mu_v = 0;
-        // calculation of mu liquid
-        bool ind_l=(reg==SinglePhase_L || reg==TwoPhase_L_V_X0 || reg==TwoPhase_L_H || reg==ThreePhase_V_L_H || reg==TwoPhase_V_L_L || reg==TwoPhase_V_L_V);
-        if(ind_l)
-        {
-            double e1 = a1 * pow(Xw_l,a2);
-            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_l,a2) * pow(T,b2);
+        // Constants for Driesner scaling
+        const double a1 = -35.9858, a2 = 0.80017;
+        const double b1 = 1e-6, b2 = -0.05239, b3 = 1.32936;
+        const double X_eps = 1e-12; // Numerical floor for salinity
+
+        mu_l = 0.0;
+        mu_v = 0.0;
+
+        // 1. LIQUID PHASE VISCOSITY
+        bool ind_l = (reg == SinglePhase_L || reg == TwoPhase_L_V_X0 || reg == TwoPhase_L_H ||
+                      reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+        
+        if (ind_l) {
+            double X_eff = std::max(Xw_l, X_eps);
+            double term_X = pow(X_eff, a2);
+            double term_T = pow(std::max(T, 0.1), b2); // Avoid T=0 in power
+            
+            double e1 = a1 * term_X;
+            double e2 = 1.0 - b1 * term_T - b3 * term_X * term_T;
             double T_star_l = e1 + e2 * T;
-            if(std::isnan(T_star_l))T_star_l = 0;
-            // SteamState S = freesteam_set_pT(P, T_star_l+Kelvin);
-            // mu_l=freesteam_mu(S);
-            mu_l=water_mu_pT(P, T_star_l+Kelvin);
-            if(std::isnan(mu_l))
-            {
-                double T_2ph0, Rho_l0, h_l0,h_v0, dpd_l0, dpd_v0, Rho_v0, Mu_v0;
-                fluidProp_crit_P(P, 1e-10,T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l, Mu_v0);
+
+            // Validation and Clamping
+            if (std::isnan(T_star_l)) T_star_l = T;
+            T_star_l = std::max(0.01, std::min(T_star_l, 1000.0)); // Clamp to water library limits
+
+            mu_l = water_mu_pT(P, T_star_l + Kelvin);
+
+            // Fallback to critical solver if library returns NaN or non-physical value
+            if (std::isnan(mu_l) || mu_l <= 0) {
+                double T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, Mu_v0;
+                fluidProp_crit_P(P, 1e-10, T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l, Mu_v0);
             }
         }
-        bool ind_v = ( reg==TwoPhase_L_V_X0 | reg==SinglePhase_V | reg==TwoPhase_V_H | reg==ThreePhase_V_L_H | reg==TwoPhase_V_L_L | reg==TwoPhase_V_L_V);
-        if(ind_v)
-        {
-            double e1 = a1 * pow(Xw_v,a2);
-            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_v,a2) * pow(T,b2);
-            double T_star_v = e1 + e2 * T;
+
+        // 2. VAPOR PHASE VISCOSITY
+        bool ind_v = (reg == SinglePhase_V || reg == TwoPhase_L_V_X0 || reg == TwoPhase_V_H ||
+                      reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+
+        if (ind_v) {
+            double X_eff = std::max(Xw_v, X_eps);
+            double term_X = pow(X_eff, a2);
+            double term_T = pow(std::max(T, 0.1), b2);
             
-            bool ind_0 = (T_star_v > 0);
-            if(ind_0)
-            {
-                // SteamState S = freesteam_set_pT(P, T_star_v+Kelvin);
-                // mu_v=freesteam_mu(S);
-                mu_v=water_mu_pT(P, T_star_v+Kelvin);
+            double e1 = a1 * term_X;
+            double e2 = 1.0 - b1 * term_T - b3 * term_X * term_T;
+            double T_star_v = e1 + e2 * T;
+
+            if (std::isnan(T_star_v)) T_star_v = T;
+            T_star_v = std::max(0.01, std::min(T_star_v, 1000.0));
+
+            if (T_star_v > 0) {
+                mu_v = water_mu_pT(P, T_star_v + Kelvin);
             }
-            if(std::isnan(mu_v))
-            {
-                double T_2ph0, Rho_l0, h_l0,h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0;
-                fluidProp_crit_P(P, 1e-10,T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0, mu_v);
+
+            if (std::isnan(mu_v) || mu_v <= 0) {
+                double T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0;
+                fluidProp_crit_P(P, 1e-10, T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0, mu_v);
             }
         }
     }
-    void cH2ONaCl:: calcViscosity_ph(int reg, double P, double H, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v)
+
+    void cH2ONaCl::calcViscosity_ph(int reg, double P, double H, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v)
     {
-        double a1 = -35.9858;
-        double a2 = 0.80017;
-        double b1 = 1e-6;
-        double b2 = -0.05239;
-        double b3 = 1.32936;
-        mu_l = 0;
-        mu_v = 0;
-        // calculation of mu liquid
-        bool ind_l=(reg==SinglePhase_L || reg==TwoPhase_L_V_X0 || reg==TwoPhase_L_H || reg==ThreePhase_V_L_H || reg==TwoPhase_V_L_L || reg==TwoPhase_V_L_V);
-        if(ind_l)
+        // Re-use the T-based logic but call the enthalpy-specific water baseline
+        // The coefficients remain identical to the PTX scaling logic
+        const double a1 = -35.9858, a2 = 0.80017;
+        const double b1 = 1e-6, b2 = -0.05239, b3 = 1.32936;
+        const double X_eps = 1e-12;
+
+        mu_l = 0.0; mu_v = 0.0;
+
+        // Logic for Liquid
+        if (reg == SinglePhase_L || reg == TwoPhase_L_V_X0 || reg == TwoPhase_L_H ||
+            reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V)
         {
-            double e1 = a1 * pow(Xw_l,a2);
-            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_l,a2) * pow(T,b2);
-            double T_star_l = e1 + e2 * T;
-            if(std::isnan(T_star_l))T_star_l = 0;
-            // SteamState S = freesteam_set_pT(P, T_star_l+Kelvin);
-            // mu_l=freesteam_mu(S);
-            mu_l=water_mu_ph(P, H, T_star_l+Kelvin);
-//            if(std::isnan(mu_l))
-//            {
-//                double T_2ph0, Rho_l0, h_l0,h_v0, dpd_l0, dpd_v0, Rho_v0, Mu_v0;
-//                fluidProp_crit_P(P, 1e-10,T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l, Mu_v0);
-//            }
-        }
-        bool ind_v = ( reg==TwoPhase_L_V_X0 | reg==SinglePhase_V | reg==TwoPhase_V_H | reg==ThreePhase_V_L_H | reg==TwoPhase_V_L_L | reg==TwoPhase_V_L_V);
-        if(ind_v)
-        {
-            double e1 = a1 * pow(Xw_v,a2);
-            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_v,a2) * pow(T,b2);
-            double T_star_v = e1 + e2 * T;
+            double X_eff = std::max(Xw_l, X_eps);
+            double T_star_l = a1*pow(X_eff, a2) + (1.0 - b1*pow(T,b2) - b3*pow(X_eff, a2)*pow(T,b2)) * T;
+            T_star_l = std::max(0.01, std::min(T_star_l, 1000.0));
             
-            bool ind_0 = (T_star_v > 0);
-            if(ind_0)
-            {
-                // SteamState S = freesteam_set_pT(P, T_star_v+Kelvin);
-                // mu_v=freesteam_mu(S);
-                mu_v=water_mu_ph(P, H, T_star_v+Kelvin);
+            mu_l = water_mu_ph(P, H, T_star_l + Kelvin);
+            
+            // Safety check for enthalpy lookup failures
+            if (std::isnan(mu_l) || std::isinf(mu_l)) {
+                // Fallback to standard T-lookup if H-lookup fails
+                mu_l = water_mu_pT(P, T_star_l + Kelvin);
             }
-//            if(std::isnan(mu_v))
-//            {
-//                double T_2ph0, Rho_l0, h_l0,h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0;
-//                fluidProp_crit_P(P, 1e-10,T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0, mu_v);
-//            }
+        }
+
+        // Logic for Vapor
+        if (reg == SinglePhase_V || reg == TwoPhase_L_V_X0 || reg == TwoPhase_V_H ||
+            reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V)
+        {
+            double X_eff = std::max(Xw_v, X_eps);
+            double T_star_v = a1*pow(X_eff, a2) + (1.0 - b1*pow(T,b2) - b3*pow(X_eff, a2)*pow(T,b2)) * T;
+            T_star_v = std::max(0.01, std::min(T_star_v, 1000.0));
+
+            mu_v = water_mu_ph(P, H, T_star_v + Kelvin);
+
+            if (std::isnan(mu_v) || std::isinf(mu_v)) {
+                mu_v = water_mu_pT(P, T_star_v + Kelvin);
+            }
         }
     }
+
     double cH2ONaCl::water_rho_pT(double p, double T_K)
     {
         #ifdef USE_PROST

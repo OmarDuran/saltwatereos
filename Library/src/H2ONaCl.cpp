@@ -759,48 +759,80 @@ namespace H2ONaCl
         
         prop.P = p_Pa;
         prop.X_wt = X_wt;
-        prop.T = T_K - Kelvin;
+        prop.T = T_K - Kelvin; // Celsius for correlations
 
+        double T_c = prop.T;
         double Xl_mol, Xv_mol;
-        prop.Region = findRegion(prop.T, p_Pa, Xwt2Xmol(X_wt), Xl_mol, Xv_mol);
 
-        calcRho(prop.Region, prop.T, p_Pa, Xl_mol, Xv_mol, prop.Rho_l, prop.Rho_v, prop.Rho_h, ...);
-        calcEnthalpy(prop.Region, prop.T, p_Pa, Xl_mol, Xv_mol, prop.H_l, prop.H_v, prop.H_h);
+        // 1. PHASE IDENTIFICATION
+        // findRegion calculates equilibrium phase compositions (molar)
+        prop.Region = findRegion(T_c, p_Pa, Xwt2Xmol(X_wt), Xl_mol, Xv_mol);
 
+        // 2. COMPONENT DENSITIES
+        double V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out;
+        calcRho(prop.Region, T_c, p_Pa, Xl_mol, Xv_mol,
+                prop.Rho_l, prop.Rho_v, prop.Rho_h,
+                V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out);
+
+        // 3. COMPONENT ENTHALPIES
+        calcEnthalpy(prop.Region, T_c, p_Pa, Xl_mol, Xv_mol, prop.H_l, prop.H_v, prop.H_h);
+
+        // 4. CONVERT SALINITIES FOR MIXING
         double Xw_l = Mol2Wt(Xl_mol);
         double Xw_v = Mol2Wt(Xv_mol);
-        prop.X_l = Xw_l; prop.X_v = Xw_v;
+        prop.X_l = Xw_l;
+        prop.X_v = Xw_v;
 
-        // S_l Lever Rule Calculation
-        if (prop.Region == SinglePhase_L) prop.S_l = 1.0;
-        else if (prop.Region == SinglePhase_V) prop.S_v = 1.0;
+        // 5. SATURATION (VOLUME FRACTION) via LEVER RULE
+        if (prop.Region == SinglePhase_L) {
+            prop.S_l = 1.0;
+        }
+        else if (prop.Region == SinglePhase_V) {
+            prop.S_v = 1.0;
+        }
         else if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
-            double beta_l = (prop.Rho_v * (Xw_v - X_wt)) / (prop.Rho_v * (Xw_v - X_wt) + prop.Rho_l * (X_wt - Xw_l));
+            // Lever rule to find mass fraction beta, then convert to volume fraction S
+            double denom = prop.Rho_v * (Xw_v - X_wt) + prop.Rho_l * (X_wt - Xw_l);
+            double beta_l = (std::abs(denom) > 1e-12) ? (prop.Rho_v * (Xw_v - X_wt)) / denom : 0.5;
+            
             prop.S_l = (beta_l * prop.Rho_l) / (beta_l * prop.Rho_l + (1.0 - beta_l) * prop.Rho_v);
             prop.S_v = 1.0 - prop.S_l;
         }
-        // ... (Lever rule for Halite regions) ...
+        else if (prop.Region == TwoPhase_V_H) {
+            double beta_h = (prop.Rho_v * (Xw_v - X_wt)) / (prop.Rho_h * (X_wt - 1.0) + prop.Rho_v * (Xw_v - X_wt));
+            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_v);
+            prop.S_v = 1.0 - prop.S_h;
+        }
+        else if (prop.Region == TwoPhase_L_H) {
+            double beta_h = (prop.Rho_l * (Xw_l - X_wt)) / (prop.Rho_h * (X_wt - 1.0) + prop.Rho_l * (Xw_l - X_wt));
+            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_l);
+            prop.S_l = 1.0 - prop.S_h;
+        }
 
-        prop.Rho = prop.S_l*prop.Rho_l + prop.S_v*prop.Rho_v + prop.S_h*prop.Rho_h;
+        // 6. BULK PROPERTIES
+        prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v + prop.S_h * prop.Rho_h;
 
-        // MASS-FRACTION WEIGHTING (Key for stability)
         if (prop.Rho > 1e-6) {
+            // MASS-FRACTION (Quality)
             double x_l = (prop.S_l * prop.Rho_l) / prop.Rho;
             double x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
             double x_h = (prop.S_h * prop.Rho_h) / prop.Rho;
 
+            // Bulk Enthalpy must be mass-weighted for bisection to be monotonic
             prop.H = x_l * prop.H_l + x_v * prop.H_v + x_h * prop.H_h;
 
+            // 7. VISCOSITY
             if (visc_on) {
-                calcViscosity(prop.Region, p_Pa, prop.T, Xw_l, Xw_v, prop.Mu_l, prop.Mu_v);
-                double x_fluid = x_l + x_v;
-                double quality = (x_fluid > 1e-9) ? (x_v / x_fluid) : 0.0;
-                prop.Mu = (1.0 - quality) * prop.Mu_l + quality * prop.Mu_v; // Cicchitti model
-            }
-        }
+                calcViscosity(prop.Region, p_Pa, T_c, Xw_l, Xw_v, prop.Mu_l, prop.Mu_v);
 
-        if (prop.Region == ThreePhase_V_L_H || prop.Region == TwoPhase_L_V_X0) {
-            prop.Rho = NAN; prop.H = NAN; prop.Mu = NAN;
+                if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
+                    double x_fluid = x_l + x_v;
+                    double quality = (x_fluid > 1e-9) ? (x_v / x_fluid) : 0.0;
+                    prop.Mu = (1.0 - quality) * prop.Mu_l + quality * prop.Mu_v; // Cicchitti
+                } else {
+                    prop.Mu = prop.S_l * prop.Mu_l + prop.S_v * prop.Mu_v + prop.S_h * 1.0;
+                }
+            }
         }
 
         return prop;

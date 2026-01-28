@@ -438,145 +438,97 @@ namespace H2ONaCl
         return prop;
     }
 
+    void cH2ONaCl::expand_bounds_PhX(double p, double H, double X_wt, double& T_low, double& T_high)
+    {
+        const double T_ABS_MIN = 0.01;   // 0.01 C
+        const double T_ABS_MAX = 1000.0; // 1000 C
+        const double dT = 25.0;          // Expansion step size
+        
+        PROP_H2ONaCl prop_low  = prop_pTX(p, T_low + Kelvin, X_wt, false);
+        PROP_H2ONaCl prop_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
+
+        int safety_counter = 0;
+        const int max_expand = 40; // prevents infinite loops
+
+        // Expansion logic: if target H is below current bracket
+        while (H < prop_low.H && T_low > T_ABS_MIN && safety_counter < max_expand) {
+            T_high = T_low;
+            prop_high = prop_low;
+            T_low = std::max(T_ABS_MIN, T_low - dT);
+            prop_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
+            safety_counter++;
+        }
+
+        // Expansion logic: if target H is above current bracket
+        while (H > prop_high.H && T_high < T_ABS_MAX && safety_counter < max_expand) {
+            T_low = T_high;
+            prop_low = prop_high;
+            T_high = std::min(T_ABS_MAX, T_high + dT);
+            prop_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
+            safety_counter++;
+        }
+    }
+
     H2ONaCl::PROP_H2ONaCl cH2ONaCl::prop_pHX_bisection(double p, double H, double X_wt)
     {
         H2ONaCl::PROP_H2ONaCl prop;
         init_prop(prop);
         prop.P = p; prop.H = H; prop.X_wt = X_wt;
-        
-        // Numerical tolerances
+
         const double tol = 1e-7;
         const int max_iter = 1500;
-        
-        // Bracketing logic
-        double T_scale_down = 0.25;
-        double T_scale_up = 1.75;
         double T1, T2;
-        
-        // Get initial temperature range estimate
+
+        // 1. Initial Guess
         guess_T_PhX(p, H, X_wt, T1, T2);
-        T1 *= T_scale_down;
-        
-        if (T2 < 1000.0 && T2 * T_scale_up <= 1000.0) {
-            T2 *= T_scale_up;
-        }
 
-        // Baseline endpoints for bracketing
-        PROP_H2ONaCl prop1 = prop_pTX(p, T1 + Kelvin, X_wt, false);
-        PROP_H2ONaCl prop2 = prop_pTX(p, T2 + Kelvin, X_wt, false);
-        
-        double h1 = prop1.H;
-        double h2 = prop2.H;
-
-        // Safety checks for NaN or out-of-range specifications
-        if (std::isnan(T1) || std::isnan(T2)) {
-            std::cout << "Error: Initial T-guess for pHX is NaN." << std::endl;
-            exit(0);
-        }
-
-        if ((T2 > 1000.0 || h1 > H) || (h2 < H && T2 >= 1000.0 && p >= 1.7e7)) {
-            prop.Region = UnknownPhaseRegion;
-            // ... (setting members to NAN) ...
-            return prop;
-        }
-
-        // Bisection Setup
-        auto res_H = [&H](double H_star) -> double {
-            return (H_star / H) - 1.0;
-        };
+        // 2. FORCE BRACKETING (Crucial for robustness)
+        expand_bounds_PhX(p, H, X_wt, T1, T2);
 
         double T_a = T1;
         double T_b = T2;
-        PROP_H2ONaCl PROP_a = prop1;
-        PROP_H2ONaCl PROP_b = prop2;
+        PROP_H2ONaCl PROP_a = prop_pTX(p, T_a + Kelvin, X_wt, false);
+        PROP_H2ONaCl PROP_b = prop_pTX(p, T_b + Kelvin, X_wt, false);
 
-        // Ensure bracketing before entering the loop
-        if (res_H(PROP_a.H) * res_H(PROP_b.H) > 0.0) {
-            // Interval expansion if current bounds don't contain the target H
-            if (PROP_a.H > H) {
-                T_a = std::max(0.0, T_a - 10.0);
-                PROP_a = prop_pTX(p, T_a + Kelvin, X_wt, false);
-            } else if (PROP_b.H < H) {
-                T_b = std::min(1000.0, T_b + 10.0);
-                PROP_b = prop_pTX(p, T_b + Kelvin, X_wt, false);
-            }
+        // 3. Final safety check: if we still don't bracket, the H is out of thermodynamic range
+        if ((H < PROP_a.H && H < PROP_b.H) || (H > PROP_a.H && H > PROP_b.H)) {
+            prop.Region = UnknownPhaseRegion;
+            return prop;
         }
+
+        auto res_H = [&H](double H_star) -> double {
+            return (H_star / H) - 1.0;
+        };
 
         PROP_H2ONaCl PROP_mid;
         int iteri = 0;
 
         for (iteri = 0; iteri < max_iter; ++iteri) {
             double T_mid = (T_a + T_b) / 2.0;
+            
+            // Use our improved pTX which handles saturation branches internally
             PROP_mid = prop_pTX(p, T_mid + Kelvin, X_wt, false);
 
-            // Update bulk properties based on phase region using mass fractions
-            calc_sat_lvh(PROP_mid, H, X_wt, false);
-
-            switch (PROP_mid.Region)
-            {
-                case ThreePhase_V_L_H:
-                {
-                    // MASS-FRACTION WEIGHTING for 3-Phase
-                    // Total density (volume weighting of densities)
-                    double rho_bulk = (PROP_mid.S_l * PROP_mid.Rho_l +
-                                       PROP_mid.S_v * PROP_mid.Rho_v +
-                                       PROP_mid.S_h * PROP_mid.Rho_h);
-                    
-                    // Calculate mass fractions (mass quality)
+            // Update bulk properties for 3-phase regions
+            if (PROP_mid.Region == ThreePhase_V_L_H) {
+                calc_sat_lvh(PROP_mid, H, X_wt, false);
+                
+                double rho_bulk = (PROP_mid.S_l * PROP_mid.Rho_l +
+                                   PROP_mid.S_v * PROP_mid.Rho_v +
+                                   PROP_mid.S_h * PROP_mid.Rho_h);
+                
+                if (rho_bulk > 0) {
+                    // MASS-FRACTION WEIGHTING
                     double x_l = (PROP_mid.S_l * PROP_mid.Rho_l) / rho_bulk;
                     double x_v = (PROP_mid.S_v * PROP_mid.Rho_v) / rho_bulk;
                     double x_h = (PROP_mid.S_h * PROP_mid.Rho_h) / rho_bulk;
-
-                    // Bulk Enthalpy is the mass-weighted sum
                     PROP_mid.H = x_l * PROP_mid.H_l + x_v * PROP_mid.H_v + x_h * PROP_mid.H_h;
                     PROP_mid.Rho = rho_bulk;
-                }
-                break;
-
-                case TwoPhase_L_V_X0:
-                {
-                    // MASS-FRACTION WEIGHTING for Boiling Pure Water
-                    double T_crit, Rho_l_s, h_l_s, h_v_s, dpd_l_s, dpd_v_s, Rho_v_s, Mu_l_s, Mu_v_s;
-                    fluidProp_crit_P(p, 1e-12, T_crit, Rho_l_s, h_l_s, h_v_s, dpd_l_s, dpd_v_s, Rho_v_s, Mu_l_s, Mu_v_s);
-                    
-                    // Mass balance for quality (x)
-                    double x = (H - h_l_s) / (h_v_s - h_l_s);
-                    x = std::max(0.0, std::min(1.0, x)); // Clamp quality [0,1]
-
-                    PROP_mid.T     = T_crit;
-                    PROP_mid.H     = H;
-                    PROP_mid.Rho   = 1.0 / ((x / Rho_v_s) + ((1.0 - x) / Rho_l_s));
-                    PROP_mid.Rho_l = Rho_l_s;
-                    PROP_mid.Rho_v = Rho_v_s;
-                    PROP_mid.H_l   = h_l_s;
-                    PROP_mid.H_v   = h_v_s;
-                    PROP_mid.S_v   = x * (PROP_mid.Rho / Rho_v_s); // Volume fraction derived from mass fraction
-                    PROP_mid.S_l   = 1.0 - PROP_mid.S_v;
-                }
-                break;
-
-                default:
-                    // For single phase regions, PROP_mid.H is already correctly returned by prop_pTX
-                    break;
-            }
-
-            // Halite Liquidus specific handling (Mass-weighting)
-            if (X_wt == 1.0) {
-                double X_hal_liq, T_hm;
-                calc_halit_liqidus(p, T_mid, X_hal_liq, T_hm);
-                if (T_mid <= T_hm && T_mid > (T_hm - 1e-4)) {
-                    double x_h = (H - PROP_mid.H_l) / (PROP_mid.H_h - PROP_mid.H_l);
-                    x_h = std::max(0.0, std::min(1.0, x_h));
-                    
-                    PROP_mid.Rho = 1.0 / ((x_h / PROP_mid.Rho_h) + ((1.0 - x_h) / PROP_mid.Rho_l));
-                    PROP_mid.H   = H;
-                    PROP_mid.S_h = x_h * (PROP_mid.Rho / PROP_mid.Rho_h);
-                    PROP_mid.S_l = 1.0 - PROP_mid.S_h;
                 }
             }
 
             // Convergence Check
-            if (std::abs(res_H(PROP_mid.H)) < tol || std::abs((T_b - T_a) / 2.0) < 1e-8) {
+            if (std::abs(res_H(PROP_mid.H)) < tol || std::abs(T_b - T_a) < 1e-8) {
                 break;
             }
 
@@ -590,21 +542,22 @@ namespace H2ONaCl
             }
         }
 
-        // Finalize output
+        // 4. Post-Loop Property Finalization
         prop = PROP_mid;
-        
-        if (iteri == max_iter) {
-            std::cout << "Warning: prop_pHX_bisection max iterations reached." << std::endl;
-        }
+        prop.H = H; // Target enthalpy is the independent variable
 
-        // Correct Viscosity calculation (Cicchitti mass-fraction model)
-        double mass_quality_v = (prop.S_v * prop.Rho_v) / prop.Rho;
+        // Final Viscosity Calculation using mass-fraction quality
         calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
         
+        double x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
         if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
-            prop.Mu = (1.0 - mass_quality_v) * prop.Mu_l + mass_quality_v * prop.Mu_v;
-        } else {
-            prop.Mu = prop.S_l * prop.Mu_l + prop.S_v * prop.Mu_v + prop.S_h * (1.0e-3); // Halite dummy mu
+            // Cicchitti Model
+            prop.Mu = (1.0 - x_v) * prop.Mu_l + x_v * prop.Mu_v;
+        } else if (prop.Region == ThreePhase_V_L_H) {
+            // Multi-phase mass weighting
+            double x_l = (prop.S_l * prop.Rho_l) / prop.Rho;
+            double x_h = (prop.S_h * prop.Rho_h) / prop.Rho;
+            prop.Mu = x_l * prop.Mu_l + x_v * prop.Mu_v + x_h * (1.0e-3); // Dummy halite mu
         }
 
         return prop;

@@ -224,6 +224,7 @@ namespace H2ONaCl
          * @param X_wt Salinity [mass fraction, [0,1]]
          * @return H2ONaCl::PROP_H2ONaCl
          */
+        void expand_bounds_PhX(double p, double H, double X_wt, double& T_low, double& T_high);
         H2ONaCl::PROP_H2ONaCl prop_pHX_bisection(double p, double H, double X_wt);
         /**
          * @brief Calculate bulk density.

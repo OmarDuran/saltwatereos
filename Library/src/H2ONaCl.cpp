@@ -2861,27 +2861,47 @@ namespace H2ONaCl
     double cH2ONaCl::water_rho_pT(double p, double T_K)
     {
         #ifdef USE_PROST
-            double d, dp, ds, dh;
-            Prop *prop0;
-            dp = 1.0e-8;
-            ds = 1.0e-8;
-            dh = 1.0e-8;
-            prop0 = newProp('t', 'p', 1);
-            d = 0.0;
-            water_tp(T_K,p,d,dp,prop0);
-            d=prop0->d;
-            if (d == 0) { // Region near critical point
-                double dmin, dmax;
-                double density = d * 1.0e-3;
-                adjust_tp(T_K, density, &dmin, &dmax);
-                if (dmin <= 1.0e-15 and dmax != 1.8){
-                    d = dmax * 1.0e3;
-                }else{
-                    d = dmin * 1.0e3;
+            double d = 0.0, dp = 1.0e-8, dt = 1.0e-7;
+            Prop *prop0 = newProp('t', 'p', 1);
+            
+            // 1. Initial lookup
+            water_tp(T_K, p, d, dp, prop0);
+            d = prop0->d;
+
+            // 2. Dome Handling: If lookup fails (NaN/0) or we are near saturation
+            if (d <= 0 || std::isnan(d))
+            {
+                Prop *propl = newProp('t', 'p', 1);
+                Prop *propv = newProp('t', 'p', 1);
+                sat_p(p, propl, propv);
+                
+                double Tsat = propl->T;
+
+                // Logic: Compare input T_K to saturation temperature
+                // Use a tiny offset (0.01K) to force the solver to the superheated or subcooled side
+                if (T_K >= Tsat) {
+                    // Vapor side: Force lookup slightly above Tsat if standard fails
+                    water_tp(std::max(T_K, Tsat + dt), p, d, dp, propv);
+                    d = propv->d;
+                } else {
+                    // Liquid side: Force lookup slightly below Tsat
+                    water_tp(std::min(T_K, Tsat - dt), p, d, dp, propl);
+                    d = propl->d;
                 }
+
+                // Patch for Region near critical point
+                if (d <= 0 || std::isnan(d)) {
+                    double dmin, dmax;
+                    adjust_tp(T_K, 0.0, &dmin, &dmax);
+                    // Return gas-like if T is high, liquid-like if T is low
+                    d = (T_K >= H2O::T_Critic + Kelvin) ? dmin * 1.0e3 : dmax * 1.0e3;
+                }
+
+                freeProp(propl);
+                freeProp(propv);
             }
-            // very very important!!!!
-            prop0 = freeProp(prop0);
+
+            freeProp(prop0);
             return d;
         #else
             SteamState S = freesteam_set_pT(p, T_K);
@@ -2892,17 +2912,35 @@ namespace H2ONaCl
     double cH2ONaCl::water_h_pT(double p, double T_K)
     {
         #ifdef USE_PROST
-            double d, dp, ds, dh;
-            Prop *prop0;
-            dp = 1.0e-8;
-            ds = 1.0e-8;
-            dh = 1.0e-8;
-            prop0 = newProp('t', 'p', 1);
-            d = 0.0;
-            water_tp(T_K,p,d,dp,prop0);
-            double h=prop0->h;
-            // very very important!!!!
-            prop0 = freeProp(prop0);
+      double d = 0.0, dp = 1.0e-8, dt = 1.0e-7;
+            Prop *prop0 = newProp('t', 'p', 1);
+            
+            water_tp(T_K, p, d, dp, prop0);
+            double h = prop0->h;
+
+            if (std::isnan(h) || h <= 0)
+            {
+                Prop *propl = newProp('t', 'p', 1);
+                Prop *propv = newProp('t', 'p', 1);
+                sat_p(p, propl, propv);
+
+                double Tsat = propl->T;
+
+                if (T_K >= Tsat) {
+                    // Return saturated vapor enthalpy (or superheated if T_K > Tsat)
+                    water_tp(std::max(T_K, Tsat + dt), p, d, dp, propv);
+                    h = propv->h;
+                } else {
+                    // Return saturated liquid enthalpy (or subcooled if T_K < Tsat)
+                    water_tp(std::min(T_K, Tsat - dt), p, d, dp, propl);
+                    h = propl->h;
+                }
+
+                freeProp(propl);
+                freeProp(propv);
+            }
+
+            freeProp(prop0);
             return h;
         #else
             SteamState S = freesteam_set_pT(p, T_K);
@@ -2912,7 +2950,7 @@ namespace H2ONaCl
     double cH2ONaCl::water_mu_pT(double p, double T_K)
     {
         #ifdef USE_PROST
-            double d = 0.0, dp = 1.0e-8, dt = 1.0e-5;
+            double d = 0.0, dp = 1.0e-8, dt = 1.0e-7;
             Prop *prop0 = newProp('t', 'p', 1);
             
             // 1. Initial attempt

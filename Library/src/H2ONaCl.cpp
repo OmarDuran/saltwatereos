@@ -40,7 +40,7 @@ namespace H2ONaCl
         {
             f.sum_f10+=f.f[i];
         }
-        return f;    
+        return f;
     }
     Cr_STRUCT cH2ONaCl:: init_Cr()
     {
@@ -215,8 +215,8 @@ namespace H2ONaCl
         T2 *= T_scale_up;
         // cout<<"T1: "<<T1<<" T2: "<<T2<<endl;
         PROP_H2ONaCl prop1, prop2;
-        prop1=prop_pTX(p,T1+Kelvin,X_wt, false); 
-        prop2=prop_pTX(p,T2+Kelvin,X_wt, false); 
+        prop1=prop_pTX(p,T1+Kelvin,X_wt, false);
+        prop2=prop_pTX(p,T2+Kelvin,X_wt, false);
         double h1 = prop1.H;
         double h2 = prop2.H;
         // printf("H: %f X_wt: %f T1: %f T2: %f h1: %f h2: %f\n",H,X_wt,T1,T2, h1, h2);
@@ -240,7 +240,7 @@ namespace H2ONaCl
         if(h1>H)
         {
             T1=0;
-            prop1=prop_pTX(p,T1+Kelvin,X_wt, false); 
+            prop1=prop_pTX(p,T1+Kelvin,X_wt, false);
             h1=prop1.H;
         }
         if((T2 > 1000 || h1 > H) || (h2 < H && T2 == 1000  && p >= 1.7e7) )
@@ -287,36 +287,36 @@ namespace H2ONaCl
                     exit(0);
                 }
                 // cout<<"new H: "<<PROP_new.H<<" region: "<<m_phaseRegion_name[PROP_new.Region]<<endl; exit(0);
-                // claculate new h in  L+V+H region 
-                calc_sat_lvh(PROP_new, H ,X_wt, false); 
+                // claculate new h in  L+V+H region
+                calc_sat_lvh(PROP_new, H ,X_wt, false);
                 switch (PROP_new.Region)
                 {
                 case ThreePhase_V_L_H:
                     {
-                        //could happen that S_l is negative, if h is outside of vlh region 
-                        PROP_new.H = (PROP_new.S_l * PROP_new.Rho_l * PROP_new.H_l + 
+                        //could happen that S_l is negative, if h is outside of vlh region
+                        PROP_new.H = (PROP_new.S_l * PROP_new.Rho_l * PROP_new.H_l +
                                     PROP_new.S_v * PROP_new.Rho_v * PROP_new.H_v +
                                     PROP_new.S_h * PROP_new.Rho_h * PROP_new.H_h) / PROP_new.Rho;
-                        if(PROP_new.S_l < 0) //calc S_h and S_v 
+                        if(PROP_new.S_l < 0) //calc S_h and S_v
                         {
                             PROP_new.S_h = (PROP_new.Rho_v * (PROP_new.X_v - X_wt))/(PROP_new.Rho_h * (X_wt-1) + PROP_new.Rho_v * (PROP_new.X_v - X_wt));
-                            PROP_new.S_v = 1 - PROP_new.S_h;  
+                            PROP_new.S_v = 1 - PROP_new.S_h;
                             PROP_new.Rho = PROP_new.S_v * PROP_new.Rho_v + PROP_new.S_h * PROP_new.Rho_h ;
                             PROP_new.H   = (PROP_new.S_v * PROP_new.Rho_v * PROP_new.H_v + PROP_new.S_h * PROP_new.Rho_h * PROP_new.H_h )/ PROP_new.Rho;
                         }
-                        if(PROP_new.S_v<0) //calc S_h and S_l 
+                        if(PROP_new.S_v<0) //calc S_h and S_l
                         {
                             PROP_new.S_h = (PROP_new.Rho_l*(PROP_new.X_l-X_wt))/(PROP_new.Rho_h*(X_wt-1) + PROP_new.Rho_l*(PROP_new.X_l-X_wt));
-                            PROP_new.S_l = 1 - PROP_new.S_h;  
+                            PROP_new.S_l = 1 - PROP_new.S_h;
                             PROP_new.Rho = PROP_new.S_l * PROP_new.Rho_l + PROP_new.S_h * PROP_new.Rho_h ;
                             PROP_new.H   = ( PROP_new.S_l * PROP_new.Rho_l * PROP_new.H_l + PROP_new.S_h * PROP_new.Rho_h * PROP_new.H_h )/ PROP_new.Rho;
                         }
-                        if(PROP_new.S_h<0) //calc S_l and S_v 
+                        if(PROP_new.S_h<0) //calc S_l and S_v
                         {
-                            PROP_new.S_l = (PROP_new.Rho_v*(PROP_new.X_v - X_wt))/(PROP_new.Rho_v*(PROP_new.X_v-X_wt)+ PROP_new.Rho_l*(X_wt-PROP_new.X_l)); 
-                            PROP_new.S_v = 1 - PROP_new.S_l;  
+                            PROP_new.S_l = (PROP_new.Rho_v*(PROP_new.X_v - X_wt))/(PROP_new.Rho_v*(PROP_new.X_v-X_wt)+ PROP_new.Rho_l*(X_wt-PROP_new.X_l));
+                            PROP_new.S_v = 1 - PROP_new.S_l;
                             PROP_new.Rho = PROP_new.S_l * PROP_new.Rho_l + PROP_new.S_v * PROP_new.Rho_v ;
-                            PROP_new.H   = ( PROP_new.S_l * PROP_new.Rho_l * PROP_new.H_l + PROP_new.S_v * PROP_new.Rho_v * PROP_new.H_v )/ PROP_new.Rho;                 
+                            PROP_new.H   = ( PROP_new.S_l * PROP_new.Rho_l * PROP_new.H_l + PROP_new.S_v * PROP_new.Rho_v * PROP_new.H_v )/ PROP_new.Rho;
                         }
                     }
                     break;
@@ -326,9 +326,9 @@ namespace H2ONaCl
                         // for single pahse X = 0
                         double T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0;
                         fluidProp_crit_P(p , 1e-12, T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
-                        double S_l = (Rho_v*(h_v - H))/(Rho_v*(h_v-H) + Rho_l*(H-h_l)); 
+                        double S_l = (Rho_v*(h_v - H))/(Rho_v*(h_v-H) + Rho_l*(H-h_l));
                         double S_v = 1- S_l;
-                        double Rho = S_l * Rho_l + S_v * Rho_v; 
+                        double Rho = S_l * Rho_l + S_v * Rho_v;
 
                         T_new = T_crit;
                         PROP_new.H     = H;
@@ -366,7 +366,7 @@ namespace H2ONaCl
                 if(X_wt==1)
                 {
                     double X_hal_liq, T_hm;
-                    calc_halit_liqidus(p, T_new,X_hal_liq, T_hm);  // T not important 
+                    calc_halit_liqidus(p, T_new,X_hal_liq, T_hm);  // T not important
                     if(T_new <= T_hm && T_new > (T_hm - 1e-4))
                     {
                         double Nenner = ( H * (PROP_new.Rho_l - PROP_new.Rho_h) - (PROP_new.H_l * PROP_new.Rho_l - PROP_new.H_h * PROP_new.Rho_h ) );
@@ -374,10 +374,10 @@ namespace H2ONaCl
                         double S_h_hm = 1 - S_l_hm;
                         double Rho_hm = S_l_hm * PROP_new.Rho_l + (1-S_l_hm) * PROP_new.Rho_h;
                         double h_hm = ( S_l_hm * PROP_new.Rho_l * PROP_new.H_l + S_h_hm * PROP_new.Rho_h * PROP_new.H_h )/Rho_hm;
-                        PROP_new.S_l  = S_l_hm; 
-                        PROP_new.S_h  = S_h_hm; 
-                        PROP_new.Rho  = Rho_hm; 
-                        PROP_new.H    = h_hm; 
+                        PROP_new.S_l  = S_l_hm;
+                        PROP_new.S_h  = S_h_hm;
+                        PROP_new.Rho  = Rho_hm;
+                        PROP_new.H    = h_hm;
                     }
                 }
                 
@@ -404,8 +404,8 @@ namespace H2ONaCl
                 }
                 if(prop.H> H)
                 {
-                    T2 = prop.T; 
-                    h2= prop.H;  
+                    T2 = prop.T;
+                    h2= prop.H;
                 }
                 if(prop.H< H)
                 {
@@ -413,12 +413,12 @@ namespace H2ONaCl
                     h1=prop.H;
                 }
                 // what's this meaning ?????
-                //  T1( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];  
-                // T2( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];  
-                // h1( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];  
-                // h2( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];   
+                //  T1( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];
+                // T2( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];
+                // h1( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];
+                // h2( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];
                 
-                // ind_iter( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = []; 
+                // ind_iter( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];
                 if(iteri>=500)
                 {
                     ind_iter=false;
@@ -736,11 +736,11 @@ namespace H2ONaCl
         e[5]=1 - e[0] - e[1] - e[2] - e[3] - e[4];
         T_hm = T_trip_salt + a*(Pres - P_trip_salt);  // melting temperature of halite is pressure dependent
 
-        X_hal_liq = (e[0]*pow((Temp/T_hm), (1-1))) + 
-                    (e[1]*pow((Temp/T_hm), (2-1))) + 
+        X_hal_liq = (e[0]*pow((Temp/T_hm), (1-1))) +
+                    (e[1]*pow((Temp/T_hm), (2-1))) +
                     (e[2]*pow((Temp/T_hm), (3-1))) +
-                    (e[3]*pow((Temp/T_hm), (4-1))) + 
-                    (e[4]*pow((Temp/T_hm), (5-1))) + 
+                    (e[3]*pow((Temp/T_hm), (4-1))) +
+                    (e[4]*pow((Temp/T_hm), (5-1))) +
                     (e[5]*pow((Temp/T_hm), (6-1)));
     }
 
@@ -769,7 +769,7 @@ namespace H2ONaCl
 //                double f_plus = PROP.Rho_v * PROP.H_v - PROP.Rho_v * (h +dh);
 //                double g_plus = PROP.Rho_h * PROP.H_h - PROP.Rho_h * (h +dh);
 //                double S_h_plus = ( a * (f_plus-e_plus) / (b-a)  - e_plus ) /  ( (g_plus - e_plus - ( f_plus-e_plus)* (c-a) / (b-a) ) );
-//                double S_v_plus = ( - (g_plus-e_plus) * S_h_plus - e_plus ) / (f_plus-e_plus); 
+//                double S_v_plus = ( - (g_plus-e_plus) * S_h_plus - e_plus ) / (f_plus-e_plus);
 //                double S_l_plus = 1 - S_v_plus - S_h_plus;
 //            }
         }
@@ -837,7 +837,7 @@ namespace H2ONaCl
             }else //ind2b
             {
                 hl = 1975;
-                hv = 2235; 
+                hv = 2235;
             }
             double reg2 = 2;
             if( h < (hl - 80) ) reg2 = 1 ;
@@ -880,9 +880,9 @@ namespace H2ONaCl
             {
                 double h_l0, h_v0, dpd_l0, dpd_v0, Mu_l0, Mu_v0,Rho_l,Rho_v;
                 fluidProp_crit_P(P*1e6 , tol, T1, Rho_l, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
-                T1 = T1 - 2e-9; 
+                T1 = T1 - 2e-9;
                 if(X >= 0.1  ) T1= T1 + 28;
-                // if(X < 1e-3 ) T1= T1; 
+                // if(X < 1e-3 ) T1= T1;
                 //T1(reg == 3) = T1(reg == 3) - X(reg == 3)*50;
                 T2 = 1000;
             }
@@ -916,19 +916,19 @@ namespace H2ONaCl
         prop.T=T_K-Kelvin;
         //---------------------------------------------------------
         double T=T_K-Kelvin,Xl_all,Xv_all;
-        // 1. 
+        // 1.
         prop.Region=findRegion(T, p, Xwt2Xmol(X_wt), Xl_all,Xv_all);
         // printf("prop_pTX(p=%.2f bar, T=%E C, X=%E wt)->findRegion: %s\n",p/1E5, T, X_wt, m_phaseRegion_name[prop.Region].c_str());
         // 2. calculate rho
         // still problematic at high T & low P
         double V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out;
-        calcRho(prop.Region, T, p, Xl_all, Xv_all, 
+        calcRho(prop.Region, T, p, Xl_all, Xv_all,
                 prop.Rho_l, prop.Rho_v, prop.Rho_h, V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out);
         // 3. calculate enthalpy
-        calcEnthalpy(prop.Region, T, p, Xl_all, Xv_all, 
+        calcEnthalpy(prop.Region, T, p, Xl_all, Xv_all,
                             prop.H_l, prop.H_v, prop.H_h);
         // printf("prop_pTX->calcEnthalpy(MJ/kg): H_l=%.2f, H_v=%.2f, H_h=%.2f, %s\n",prop.H_l,prop.H_v, prop.H_h, m_phaseRegion_name[prop.Region].c_str());
-        // 4. 
+        // 4.
         double Xw_l = Xl_all * NaCl::MolarMass / (Xl_all * NaCl::MolarMass + (1-Xl_all) * H2O::MolarMass);
         double Xw_v = Xv_all * NaCl::MolarMass / (Xv_all * NaCl::MolarMass + (1-Xv_all) * H2O::MolarMass);
 
@@ -966,16 +966,16 @@ namespace H2ONaCl
         // printf("prop_pTX: Rho=%.2f, Rho_l=%.2f, Rho_v=%.2f, Rho_h=%.2f\n",prop.Rho,prop.Rho_l, prop.Rho_v, prop.Rho_h);
         // printf("prop_pTX: S_l=%.2f, S_v=%.2f, S_h=%.2f\n",prop.S_l, prop.S_v, prop.S_h);
         // v+l+h-region: //TODO: why ????
-        if(prop.Region==ThreePhase_V_L_H) prop.S_l= NAN; 
-        if(prop.Region==ThreePhase_V_L_H) prop.S_v= NAN; 
-        if(prop.Region==ThreePhase_V_L_H) prop.S_h= NAN; 
-        if(prop.Region==ThreePhase_V_L_H) prop.Rho= NAN; 
-        if(prop.Region==ThreePhase_V_L_H) prop.H= NAN; 
+        if(prop.Region==ThreePhase_V_L_H) prop.S_l= NAN;
+        if(prop.Region==ThreePhase_V_L_H) prop.S_v= NAN;
+        if(prop.Region==ThreePhase_V_L_H) prop.S_h= NAN;
+        if(prop.Region==ThreePhase_V_L_H) prop.Rho= NAN;
+        if(prop.Region==ThreePhase_V_L_H) prop.H= NAN;
         // v+l-region X = 0;
-        if(prop.Region==TwoPhase_L_V_X0) prop.S_l= NAN; 
-        if(prop.Region==TwoPhase_L_V_X0) prop.S_v= NAN; 
-        if(prop.Region==TwoPhase_L_V_X0) prop.S_h= 0; 
-        if(prop.Region==TwoPhase_L_V_X0) prop.Rho = NAN; 
+        if(prop.Region==TwoPhase_L_V_X0) prop.S_l= NAN;
+        if(prop.Region==TwoPhase_L_V_X0) prop.S_v= NAN;
+        if(prop.Region==TwoPhase_L_V_X0) prop.S_h= 0;
+        if(prop.Region==TwoPhase_L_V_X0) prop.Rho = NAN;
         if(prop.Region==TwoPhase_L_V_X0)
         {
             prop.H= NAN;
@@ -984,13 +984,11 @@ namespace H2ONaCl
         prop.X_l = Xw_l;
         prop.X_v = Xw_v;
 
-        // Use the Cicchitti model (mass-fraction weighted):
-        double mass_flux_X = (prop.S_v * prop.Rho_v) / prop.Rho; 
-        prop.Mu = (1.0 - mass_flux_X) * prop.Mu_l + mass_flux_X * prop.Mu_v;
+        prop.Mu = prop.S_l*prop.Mu_l + prop.S_v*prop.Mu_v; //need to fix later!!! This is not correct, but to test thermophysical model in OpenFoam, use this at this moment
         // v+l+h-region
-        if(prop.Region==ThreePhase_V_L_H) prop.Mu= NAN; 
+        if(prop.Region==ThreePhase_V_L_H) prop.Mu= NAN;
         // v+l-region X = 0;
-        if(prop.Region==TwoPhase_L_V_X0) prop.Mu = NAN; 
+        if(prop.Region==TwoPhase_L_V_X0) prop.Mu = NAN;
         
         return prop;
     }
@@ -1002,15 +1000,15 @@ namespace H2ONaCl
         prop.T=T_K-Kelvin;
         prop.P=p;
         prop.X_wt=X_wt;
-        // 1. 
+        // 1.
         double T=T_K-Kelvin,Xl_all,Xv_all;
         prop.Region=findRegion(T, p, Xwt2Xmol(X_wt), Xl_all,Xv_all);
         // 2. calculate rho
         // still problematic at high T & low P
         double V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out;
-        calcRho(prop.Region, T, p, Xl_all, Xv_all, 
+        calcRho(prop.Region, T, p, Xl_all, Xv_all,
                 prop.Rho_l, prop.Rho_v, prop.Rho_h, V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out);
-        // 4. 
+        // 4.
         double Xw_l = Xl_all * NaCl::MolarMass / (Xl_all * NaCl::MolarMass + (1-Xl_all) * H2O::MolarMass);
         double Xw_v = Xv_all * NaCl::MolarMass / (Xv_all * NaCl::MolarMass + (1-Xv_all) * H2O::MolarMass);
 
@@ -1019,7 +1017,7 @@ namespace H2ONaCl
         //  Calculate saturation of liquid in L+V region
         if(prop.Region==TwoPhase_V_L_L | prop.Region==TwoPhase_V_L_V)
         {
-            prop.S_l = (prop.Rho_v *(Xw_v - Xw))/(prop.Rho_v*(Xw_v-Xw) + prop.Rho_l *(Xw-Xw_l)); 
+            prop.S_l = (prop.Rho_v *(Xw_v - Xw))/(prop.Rho_v*(Xw_v-Xw) + prop.Rho_l *(Xw-Xw_l));
         }
         // Calculate saturation of halite in V+H region
         if(prop.Region==TwoPhase_V_H)
@@ -1038,9 +1036,9 @@ namespace H2ONaCl
         if(prop.Region==TwoPhase_L_H) prop.S_l= 1 - prop.S_h;
         prop.Rho = prop.S_l*prop.Rho_l + prop.S_v*prop.Rho_v + prop.S_h *prop.Rho_h ;
         // v+l+h-region
-        if(prop.Region==ThreePhase_V_L_H) prop.Rho= NAN; 
+        if(prop.Region==ThreePhase_V_L_H) prop.Rho= NAN;
         // v+l-region X = 0;
-        if(prop.Region==TwoPhase_L_V_X0) prop.Rho = NAN; 
+        if(prop.Region==TwoPhase_L_V_X0) prop.Rho = NAN;
         
         return prop.Rho;
     }
@@ -1052,13 +1050,13 @@ namespace H2ONaCl
         prop.T=T_K-Kelvin;
         prop.P=p;
         prop.X_wt=X_wt;
-        // 1. 
+        // 1.
         double T=T_K-Kelvin,Xl_all,Xv_all;
         prop.Region=findRegion(T, p, Xwt2Xmol(X_wt), Xl_all,Xv_all);
         // 2. calculate rho
         // still problematic at high T & low P
         double V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out;
-        calcRho(prop.Region, T, p, Xl_all, Xv_all, 
+        calcRho(prop.Region, T, p, Xl_all, Xv_all,
                 prop.Rho_l, prop.Rho_v, prop.Rho_h, V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out);
         
         return prop.Rho_l;
@@ -1071,10 +1069,10 @@ namespace H2ONaCl
         prop.T=T_K-Kelvin;
         prop.P=p;
         prop.X_wt=X_wt;
-        // 1. 
+        // 1.
         double T=T_K-Kelvin,Xl_all,Xv_all;
         prop.Region=findRegion(T, p, Xwt2Xmol(X_wt), Xl_all,Xv_all);
-        // 4. 
+        // 4.
         double Xw_l = Xl_all * NaCl::MolarMass / (Xl_all * NaCl::MolarMass + (1-Xl_all) * H2O::MolarMass);
         double Xw_v = Xv_all * NaCl::MolarMass / (Xv_all * NaCl::MolarMass + (1-Xv_all) * H2O::MolarMass);
 
@@ -1090,15 +1088,15 @@ namespace H2ONaCl
         prop.T=T_K-Kelvin;
         prop.P=p;
         prop.X_wt=X_wt;
-        // 1. 
+        // 1.
         double T=T_K-Kelvin,Xl_all,Xv_all;
         prop.Region=findRegion(T, p, Xwt2Xmol(X_wt), Xl_all,Xv_all);
         // 2. calculate rho
         // still problematic at high T & low P
         double V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out;
-        calcRho(prop.Region, T, p, Xl_all, Xv_all, 
+        calcRho(prop.Region, T, p, Xl_all, Xv_all,
                 prop.Rho_l, prop.Rho_v, prop.Rho_h, V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out);
-        // 4. 
+        // 4.
         double Xw_l = Xl_all * NaCl::MolarMass / (Xl_all * NaCl::MolarMass + (1-Xl_all) * H2O::MolarMass);
         double Xw_v = Xv_all * NaCl::MolarMass / (Xv_all * NaCl::MolarMass + (1-Xv_all) * H2O::MolarMass);
 
@@ -1111,7 +1109,7 @@ namespace H2ONaCl
         //  Calculate saturation of liquid in L+V region
         if(prop.Region==TwoPhase_V_L_L | prop.Region==TwoPhase_V_L_V)
         {
-            prop.S_l = (prop.Rho_v *(Xw_v - Xw))/(prop.Rho_v*(Xw_v-Xw) + prop.Rho_l *(Xw-Xw_l)); 
+            prop.S_l = (prop.Rho_v *(Xw_v - Xw))/(prop.Rho_v*(Xw_v-Xw) + prop.Rho_l *(Xw-Xw_l));
         }
         // Calculate saturation of halite in V+H region
         if(prop.Region==TwoPhase_V_H)
@@ -1128,11 +1126,14 @@ namespace H2ONaCl
         if(prop.Region==TwoPhase_V_L_L || prop.Region==TwoPhase_V_L_V) prop.S_v= 1 - prop.S_l;
         if(prop.Region==TwoPhase_V_H) prop.S_v= 1 - prop.S_h;
         if(prop.Region==TwoPhase_L_H) prop.S_l= 1 - prop.S_h;
-        prop.Mu = prop.S_l*prop.Mu_l + prop.S_v*prop.Mu_v; //need to fix later!!! This is not correct, but to test thermophysical model in OpenFoam, use this at this moment
+        
+        // Use the Cicchitti model (mass-fraction weighted):
+        double mass_flux_X = (prop.S_v * prop.Rho_v) / prop.Rho;
+        prop.Mu = (1.0 - mass_flux_X) * prop.Mu_l + mass_flux_X * prop.Mu_v;
         // v+l+h-region
-        if(prop.Region==ThreePhase_V_L_H) prop.Mu= NAN; 
+        if(prop.Region==ThreePhase_V_L_H) prop.Mu= NAN;
         // v+l-region X = 0;
-        if(prop.Region==TwoPhase_L_V_X0) prop.Mu = NAN; 
+        if(prop.Region==TwoPhase_L_V_X0) prop.Mu = NAN;
         
         return prop.Mu;
     }
@@ -1176,7 +1177,7 @@ namespace H2ONaCl
             P_crit=Pcrit_h2o_point + cn1[0]*pow((Tcrit_h2o - T),ca[0]) + cn1[1]*pow((Tcrit_h2o - T),ca[1])
                                 + cn1[2]*pow((Tcrit_h2o - T),ca[2]) + cn1[3]*pow((Tcrit_h2o - T),ca[3])
                                 + cn1[4]*pow((Tcrit_h2o - T),ca[4]) + cn1[5]*pow((Tcrit_h2o - T),ca[5])
-                                + cn1[6]*pow((Tcrit_h2o - T),ca[6]); 
+                                + cn1[6]*pow((Tcrit_h2o - T),ca[6]);
         }else if(T>Tcrit_h2o && T<=500)
         {
             P_crit = Pcrit_h2o_point + cn2[0]*pow((T - Tcrit_h2o),ca[6+1]) + cn2[1]*pow((T - Tcrit_h2o),ca[6+2])
@@ -1198,8 +1199,8 @@ namespace H2ONaCl
         if(T>=Tcrit_h2o && T<=600)
         {
             X_crit =  d1[0]*pow((T-Tcrit_h2o),1) + d1[1]*pow((T-Tcrit_h2o),2)
-                    + d1[2]*pow((T-Tcrit_h2o),3) + d1[3]*pow((T-Tcrit_h2o),4) 
-                    + d1[4]*pow((T-Tcrit_h2o),5) + d1[5]*pow((T-Tcrit_h2o),6) 
+                    + d1[2]*pow((T-Tcrit_h2o),3) + d1[3]*pow((T-Tcrit_h2o),4)
+                    + d1[4]*pow((T-Tcrit_h2o),5) + d1[5]*pow((T-Tcrit_h2o),6)
                     + d1[6]*pow((T-Tcrit_h2o),7);
         }else if(T>600)
         {
@@ -1237,10 +1238,10 @@ namespace H2ONaCl
         }
         double P_vlh = m_f.f[0]*(pow(T_star,0)) + m_f.f[1]*(pow(T_star,1)) + m_f.f[2]*(pow(T_star,2)) + m_f.f[3]*(pow(T_star,3))
                     + m_f.f[4]*(pow(T_star,4)) + m_f.f[5]*(pow(T_star,5)) + m_f.f[6]*(pow(T_star,6)) + m_f.f[7]*(pow(T_star,7))
-                    + m_f.f[8]*(pow(T_star,8)) + m_f.f[9]*(pow(T_star,9)) + m_f.f[10]*(pow(T_star,10)); 
+                    + m_f.f[8]*(pow(T_star,8)) + m_f.f[9]*(pow(T_star,9)) + m_f.f[10]*(pow(T_star,10));
         if(T>T_trip_salt)//V+L+H suface do not exist
         {
-            P_vlh=0; 
+            P_vlh=0;
         }else if(T==T_trip_salt) //as P_vlh(T_star(T_trip_salt)) is not P_triple_salt
         {
             P_vlh=P_trip_salt;
@@ -1288,13 +1289,13 @@ namespace H2ONaCl
         // Calculate Xl_vlh at V+L+H surface for calculating X_l in V+L region
         double e[6] = {0.0989944 + 3.30796e-6*P_vlh - 4.71759e-10*(pow(P_vlh,2)),
                     0.00947257 - 8.66460e-6*P_vlh + 1.69417e-9*(pow(P_vlh,2)),
-                    0.610863 - 1.51716e-5*P_vlh + 1.19290e-8*(pow(P_vlh,2)),        
+                    0.610863 - 1.51716e-5*P_vlh + 1.19290e-8*(pow(P_vlh,2)),
                     -1.64994 + 2.03441e-4*P_vlh - 6.46015e-8*(pow(P_vlh,2)),
                     3.36474 - 1.54023e-4*P_vlh + 8.17048e-8*(pow(P_vlh,2)),
-                    1}; 
+                    1};
         for(int i=0;i<5;i++)e[5]-=e[i];
         // for(int i=0;i<6;i++)cout<<e[i]<<endl;
-        double T_hm = T_trip_salt + a*(P_vlh - P_trip_salt);  
+        double T_hm = T_trip_salt + a*(P_vlh - P_trip_salt);
         T_star = T/T_hm;
         double Xl_vlh = (e[0]*pow(T_star,0)) + (e[1]*pow(T_star,1)) + (e[2]*pow(T_star,2)) + (e[3]*pow(T_star,3))
                 + (e[4]*pow(T_star,4)) + (e[5]*pow(T_star,5));
@@ -1304,60 +1305,60 @@ namespace H2ONaCl
 
         // ======================================================================
         // Calculate Xl_vh metastable for calulating Xv_vh at V - V+H transition P<P_vlh
-        double tol_P_LVH = 1e-6; 
+        double tol_P_LVH = 1e-6;
         bool ind=false;
         double Xv_vh=0;
         if(Pres < (P_vlh+tol_P_LVH))
         {
             ind=true;
-            // here Pres not P_lvh musst be used? 
+            // here Pres not P_lvh musst be used?
             double e2[6] = {0.0989944 + 3.30796e-6*Pres - 4.71759e-10*pow(Pres,2),
                             0.00947257 - 8.66460e-6*Pres + 1.69417e-9*pow(Pres,2),
                             0.610863 - 1.51716e-5*Pres + 1.19290e-8*pow(Pres,2),
                             -1.64994 + 2.03441e-4*Pres - 6.46015e-8*pow(Pres,2),
                             3.36474 - 1.54023e-4*Pres + 8.17048e-8*pow(Pres,2),
                             1};
-            for(int i=0;i<5;i++)e2[5]-=e2[i]; 
-            double T_hm2 = T_trip_salt + a*(Pres - P_trip_salt);  // here Pres not P_lvh musst be used? 
+            for(int i=0;i<5;i++)e2[5]-=e2[i];
+            double T_hm2 = T_trip_salt + a*(Pres - P_trip_salt);  // here Pres not P_lvh musst be used?
             double T_star2 = T/T_hm2;
             double Xl_vh = (e2[0]*pow(T_star2,0)) + (e2[1]*pow(T_star2,1)) + (e2[2]*pow(T_star2,2))
                         + (e2[3]*pow(T_star2,3)) + (e2[4]*pow(T_star2,4)) + (e2[5]*pow(T_star2,5));
-            // Calculate Xv_vh at V - V+H transition P<P_vlh  
+            // Calculate Xv_vh at V - V+H transition P<P_vlh
             double P_norm = (Pres - PNacl)/(P_crit - PNacl); // P_crit from equation 5a
-            double log10K2 = 1 + j0*(pow((1-P_norm),j1)) + j2*(1-P_norm) + j3*(pow((1-P_norm),2)) - (1+j0+j2+j3)*(pow((1-P_norm),3));  
+            double log10K2 = 1 + j0*(pow((1-P_norm),j1)) + j2*(1-P_norm) + j3*(pow((1-P_norm),2)) - (1+j0+j2+j3)*(pow((1-P_norm),3));
             double log10K1 = log10K2*(log10(PNacl/P_crit) - log10(Xl_vlh)) + log10(Xl_vlh); // here Xl_vlh must be used, not Xl_vh!?
             double log10K = log10K1 - log10(PNacl/Pres);
             double K_vh = pow(10,log10K);
-            Xv_vh = Xl_vh/K_vh;  
+            Xv_vh = Xl_vh/K_vh;
         }
         // cout<<" Xv_vh: "<<Xv_vh<<endl;exit(0);
         // ======================================================================
-        // Calculate Xl_vl in V+L Region 
+        // Calculate Xl_vl in V+L Region
         double g1 = h2 + (h1-h2)/(1 + exp((T-h3)/h4)) + h5*(T*T);
         double g2 = h7 + (h6-h7)/(1 + exp((T-h8)/h9)) + h10*exp(-h11*T);
         // cout<<"g1: "<<g1<<" g2: "<<g2<<endl;
-        // For Temp<=Tcrit_h2o find X_crit so that for P_crit_h20, which is lower then P_crit for same Temp,  Xl_vl(P_crit_h20) = 0 
+        // For Temp<=Tcrit_h2o find X_crit so that for P_crit_h20, which is lower then P_crit for same Temp,  Xl_vl(P_crit_h20) = 0
         // Note that X_crit is then negative
         // Equation for X_crit comes from eqn for g0 and Xl_vl
         // cout<<"X_crit: "<<X_crit<<endl;
         if(T<Tcrit_h2o)
         {
-            // when P_crit < P_crit_h20 for ind_T, then X_crit is complex     
+            // when P_crit < P_crit_h20 for ind_T, then X_crit is complex
             if(P_crit<P_crit_h20)
             {
-                X_crit=0; 
+                X_crit=0;
             }else
             {
                 X_crit =(
-                    ( Xl_vlh - g1*(P_crit - P_vlh) - g2*(pow((P_crit-P_vlh),2)) ) *  
-                    sqrt(P_crit-P_crit_h20)/sqrt(P_crit-P_vlh) + 
-                    g1*(P_crit - P_crit_h20) + 
-                    g2*(pow((P_crit-P_crit_h20),2))  
+                    ( Xl_vlh - g1*(P_crit - P_vlh) - g2*(pow((P_crit-P_vlh),2)) ) *
+                    sqrt(P_crit-P_crit_h20)/sqrt(P_crit-P_vlh) +
+                    g1*(P_crit - P_crit_h20) +
+                    g2*(pow((P_crit-P_crit_h20),2))
                     )/( -1 + sqrt(P_crit-P_crit_h20)/(sqrt(P_crit-P_vlh)) ) ;
             }
             
         }
-        // X_crit(P_crit < P_crit_h20) = % this should not happen, but it does near critical point, when P_crit < P_crit_h20  
+        // X_crit(P_crit < P_crit_h20) = % this should not happen, but it does near critical point, when P_crit < P_crit_h20
         // cout<<"X_crit: "<<X_crit<<endl;exit(0);
         double g0 = (Xl_vlh - X_crit - g1*(P_crit - P_vlh) - g2*pow((P_crit-P_vlh),2))/sqrt(P_crit-P_vlh);
         // cout<<"g0: "<<g0<<endl;
@@ -1371,7 +1372,7 @@ namespace H2ONaCl
         }
         else
         {
-            Xl_vl = X_crit + g0*sqrt(P_crit - Pres) + g1*(P_crit - Pres) + g2*(pow((P_crit-Pres),2));  // to low for 1000°C 
+            Xl_vl = X_crit + g0*sqrt(P_crit - Pres) + g1*(P_crit - Pres) + g2*(pow((P_crit-Pres),2));  // to low for 1000°C
             
             //Calculate Xv_vl in V+L Region  T> T_crit_H2O is ok but constnant minmal
             //offset to Driesner paper
@@ -1412,10 +1413,10 @@ namespace H2ONaCl
         if( X == 0 && Pres <= Pcrit_h2o_point && T<(T_crit+1e-9) && T>(T_crit-1e-9))region_ind = TwoPhase_L_V_X0;
         if(X>0 && X>=Xv && T<=T_trip_salt && Pres<=(P_vlh-tol_P_LVH) )region_ind   = TwoPhase_V_H;   // V+H & V+H-surface
         if(X>0 && X>=Xv && T<=T_trip_salt && Pres<(P_vlh+tol_P_LVH) && Pres>(P_vlh-tol_P_LVH) )region_ind   = ThreePhase_V_L_H;
-        if(X>0 && X<=Xl && X>=Xv && X>=X_crit && Pres>=(P_vlh+tol_P_LVH)  && Pres<=P_crit_s)region_ind  = TwoPhase_V_L_L;  
-        if(X>0 && X>=Xv && X<X_crit && Pres>=(P_vlh+tol_P_LVH) && Pres<=P_crit_s)region_ind           = TwoPhase_V_L_V;  
+        if(X>0 && X<=Xl && X>=Xv && X>=X_crit && Pres>=(P_vlh+tol_P_LVH)  && Pres<=P_crit_s)region_ind  = TwoPhase_V_L_L;
+        if(X>0 && X>=Xv && X<X_crit && Pres>=(P_vlh+tol_P_LVH) && Pres<=P_crit_s)region_ind           = TwoPhase_V_L_V;
         //------------------------------------------------------------------------------------------------------
-        //FOR THE L+H REGION 
+        //FOR THE L+H REGION
         double ee[6] = {0.0989944 + 3.30796e-6*Pres - 4.71759e-10*(Pres*Pres),
                     0.00947257 - 8.66460e-6*Pres + 1.69417e-9*(Pres*Pres),
                     0.610863 - 1.51716e-5*Pres + 1.19290e-8*(Pres*Pres),
@@ -1478,8 +1479,8 @@ namespace H2ONaCl
         return region_ind;
     }
     
-    void cH2ONaCl:: fluidProp_crit_P(double P, double tol, double& T_2ph, 
-                    double& Rho_l, double& h_l, double& h_v, double& dpd_l, 
+    void cH2ONaCl:: fluidProp_crit_P(double P, double tol, double& T_2ph,
+                    double& Rho_l, double& h_l, double& h_v, double& dpd_l,
                     double& dpd_v, double& Rho_v, double& Mu_l, double& Mu_v)
     {
         P = P * 1e-6; //[MPA]
@@ -1509,7 +1510,7 @@ namespace H2ONaCl
             double h_v_ind2b = 0;
             double dpd_l_ind2b = 0;
             double dpd_v_ind2b = 0;
-            double cv_ind2b = 0; 
+            double cv_ind2b = 0;
             double dpT_ind2b = 0;
             //--------------------------------------------------------------------------
             //calculation for 22.05485 > P > P_creg in two phase region
@@ -1517,7 +1518,7 @@ namespace H2ONaCl
             double T_ind2b=0;
             if(P_ind2b < 22.05485)
             {
-                double T_ind2b_1 = 647.126; 
+                double T_ind2b_1 = 647.126;
                 double dP = 1;
 
                 double P_ind2b_1 = P_ind2b;
@@ -1544,7 +1545,7 @@ namespace H2ONaCl
                 {
                     double temp, dpsdt;
                     approx_ps(T_ind2b_1,temp,dpsdt);
-                    T_ind2b_1 = T_ind2b_1 - dP/dpsdt;  
+                    T_ind2b_1 = T_ind2b_1 - dP/dpsdt;
                     psatc (T_ind2b_1,h_l_c, h_v_c ,Rho_l_c, Rho_v_c, dpd_l_c, dpd_v_c, psa);
                     dP = psa - P_ind2b_1;
 
@@ -1553,7 +1554,7 @@ namespace H2ONaCl
                     h_l_ind2b_1 = h_l_c;
                     h_v_ind2b_1 = h_v_c;
                     dpd_l_ind2b_1 = dpd_l_c;
-                    dpd_v_ind2b_1 = dpd_v_c;   
+                    dpd_v_ind2b_1 = dpd_v_c;
                     if(abs(dP) <= tol)
                     {
                         break;
@@ -1668,11 +1669,11 @@ namespace H2ONaCl
                 if(ind2a_iter==false)break;
             }
             // cout<<"T_ind2a: "<<T_ind2a<<"psa: "<<psa<<" dpsdt: "<<dpsdt<<endl;exit(0);
-            double al1[11] = {0.3155901296, -0.03592060636, 2.396625841, -36.39240662, 413.6745246, 
+            double al1[11] = {0.3155901296, -0.03592060636, 2.396625841, -36.39240662, 413.6745246,
                             -2911.342409, 12844.66533, -35543.55367, 59925.07856, -56266.61248, 22585.58};
-            double av1[11] = {11.08333753, -44.64350654, 121.0778198, -278.5153762, 327.9464497, 
+            double av1[11] = {11.08333753, -44.64350654, 121.0778198, -278.5153762, 327.9464497,
                             1462.514145, -11593.55916, 38922.19673, -73229.67131, 74466.37149, -31962.35787};
-            double al2[10] = {1.0, 0.643432247, -25.98811457, 192.8271795, -947.6312526, 
+            double al2[10] = {1.0, 0.643432247, -25.98811457, 192.8271795, -947.6312526,
                             3190.638964, -6805.842363, 8088.134131, -4034.574025, 0.0};
             double av2[10] = {1.000000272, 4.026415669, -129.9023268, 1867.667009, -13845.24815,
                             61824.71587, -171560.6251, 290312.0606, -274292.5181, 111202.097};
@@ -1719,11 +1720,11 @@ namespace H2ONaCl
             double con_gas = 0.46152200; //kJ/kg
             for(int i=0;i<imax;i++)
             {
-                MP_STRUCT MP = bb(T_ind2a);   
+                MP_STRUCT MP = bb(T_ind2a);
                 ID_STRUCT ID = ideal(T_ind2a);
                 TWOPHASEPROP_STRUCT l_prop, v_prop;
                 twoPhaseProp( T_ind2a,Rho_l_ind2a, Rho_v_ind2a, MP, ID, l_prop,v_prop);
-                double dpT_a = (v_prop.s - l_prop.s) * Rho_l_ind2a * Rho_v_ind2a/(Rho_l_ind2a - Rho_v_ind2a) ; 
+                double dpT_a = (v_prop.s - l_prop.s) * Rho_l_ind2a * Rho_v_ind2a/(Rho_l_ind2a - Rho_v_ind2a) ;
                 // cout<<"dpT_a: "<<dpT_a<<endl;
                 delpl = abs(1 - l_prop.p / P_ind2a);
                 delpv = abs(1 - v_prop.p / P_ind2a);
@@ -1736,8 +1737,8 @@ namespace H2ONaCl
                 h_v_ind2a = v_prop.h;
                 
                 dpd_l_ind2a = l_prop.dpd;
-                dpd_v_ind2a = v_prop.dpd;   
-                dpT_ind2a = dpT_a; 
+                dpd_v_ind2a = v_prop.dpd;
+                dpT_ind2a = dpT_a;
                 delg = abs( (l_prop.g - v_prop.g)/con_gas/T_ind2a );
                 if((delpl < tol) && (delpv < tol) && (delg < tol*1e-2))
                 {
@@ -1774,7 +1775,7 @@ namespace H2ONaCl
     }
     void cH2ONaCl:: psatc(double T, double& h_l, double& h_v ,double& Rho_l, double& Rho_v,double& dpd_l,double& dpd_v, double& psa)
     {
-        MP_STRUCT MP = bb(T);   
+        MP_STRUCT MP = bb(T);
         ID_STRUCT ID = ideal(T);
         double tt = 1 - (T/647.126);
         double dd = 0.657128 * pow(tt, 0.325);
@@ -1789,7 +1790,7 @@ namespace H2ONaCl
         BS = base(T, Rho_v, MP);
         RS = resid(T, Rho_v);
         TWOPHASEPROP_STRUCT v_prop = props(T, Rho_v, BS, RS, ID);
-        psa = 0.6 * v_prop.p + 0.4 * l_prop.p; 
+        psa = 0.6 * v_prop.p + 0.4 * l_prop.p;
 
         h_l = l_prop.h;
         h_v = v_prop.h;
@@ -1867,21 +1868,21 @@ namespace H2ONaCl
             TWOPHASEPROP_STRUCT l_prop, v_prop;
             for (size_t i = 0; i < 20; i++)
             {
-                MP_STRUCT MP = bb(T_ind2a); 
+                MP_STRUCT MP = bb(T_ind2a);
                 ID_STRUCT ID = ideal(T_ind2a);
                 twoPhaseProp( T_ind2a ,Rho_l_ind2a, Rho_v_ind2a ,MP,ID, l_prop, v_prop);
                 
                 double delp = abs(1.0 - v_prop.p/l_prop.p);
                 double delg = abs((l_prop.g - v_prop.g)/con_gas/T_ind2a);
                 double psa = (l_prop.f - v_prop.f)/(1.0/(Rho_v_ind2a) - 1.0/(Rho_l_ind2a));
-                //psa could produce higher values than  
+                //psa could produce higher values than
                 Rho_l_ind2a -= (l_prop.p - psa)/l_prop.dpd;
                 Rho_v_ind2a -= (v_prop.p - psa)/v_prop.dpd;
                 h_l_ind2a = l_prop.h;
                 h_v_ind2a = v_prop.h;
         
                 dpd_l_ind2a = l_prop.dpd;
-                dpd_v_ind2a = v_prop.dpd;   
+                dpd_v_ind2a = v_prop.dpd;
         
                 P_ind2a = 0.5 * (v_prop.p + l_prop.p);
         
@@ -1892,7 +1893,7 @@ namespace H2ONaCl
             h_l = h_l_ind2a;
             h_v = h_v_ind2a;
 
-            dpd_l = dpd_l_ind2a; 
+            dpd_l = dpd_l_ind2a;
             dpd_v = dpd_v_ind2a;
 
             P = P_ind2a;
@@ -1903,7 +1904,7 @@ namespace H2ONaCl
         {
             double T_ind2b = T_2ph;
     
-            MP_STRUCT MP = bb(T_ind2b);   
+            MP_STRUCT MP = bb(T_ind2b);
             ID_STRUCT ID = ideal(T_ind2b);
 
             double tt = 1.0 - (T_ind2b/647.126);
@@ -1921,7 +1922,7 @@ namespace H2ONaCl
             h_v = v_prop.h;
 
             dpd_l = l_prop.dpd;
-            dpd_v = v_prop.dpd;   
+            dpd_v = v_prop.dpd;
 
             P = 0.6 * v_prop.p + 0.4 * l_prop.p; //sic
         }else
@@ -2020,12 +2021,12 @@ namespace H2ONaCl
         double con_gas = 0.46152200;      // kJ/kg
         double con_sref = 7.6180802;      // without Einheit
         double con_uref = -4328.455039;   //K
-        double Ci[18] ={19.730271018, 20.9662681977, 
-                        -0.483429455355, 6.05743189245, 
+        double Ci[18] ={19.730271018, 20.9662681977,
+                        -0.483429455355, 6.05743189245,
                         22.56023885, -9.87532442,
-                        -4.3135538513, 0.458155781, 
+                        -4.3135538513, 0.458155781,
                         -0.047754901883, 0.0041238460633,
-                        -0.00027929052852, 0.000014481695261, 
+                        -0.00027929052852, 0.000014481695261,
                         -0.00000056473658748, 0.000000016200446,
                         -0.0000000003303822796, 0.00000000000451916067368,
                         -0.0000000000000370734122708, 0.000000000000000137546068238};
@@ -2037,22 +2038,22 @@ namespace H2ONaCl
         ID.f = -con_gas *
             (T * ((Ci[0]/tr + Ci[1]) * tl
             + ((Ci[2]/tr + Ci[3])/tr + Ci[4])/tr + Ci[5]
-            + (Ci[6] + (Ci[7] + (Ci[8] + (Ci[9] + (Ci[10] + (Ci[11] 
+            + (Ci[6] + (Ci[7] + (Ci[8] + (Ci[9] + (Ci[10] + (Ci[11]
             + (Ci[12] + (Ci[13] + (Ci[14] + (Ci[15] + (Ci[16]
             + Ci[17] * tr) * tr) * tr) * tr) * tr) * tr) * tr) * tr) * tr)
                 * tr) * tr) * tr + 1 - con_sref) + con_uref);
         
-        ID.ft = -con_gas * (Ci[0]/tr + Ci[1] * (tl + 1.0) 
+        ID.ft = -con_gas * (Ci[0]/tr + Ci[1] * (tl + 1.0)
                 - (2 * Ci[2]/tr + Ci[3])/tr/tr + Ci[5]
                 + (2 * Ci[6] + (3.0 * Ci[7] + (4.0 * Ci[8] + (5.0 * Ci[9]
                 + (6 * Ci[10] + (7.0 * Ci[11] + (8.0 * Ci[12]
                 + (9 * Ci[13] + (10 * Ci[14] + (11 * Ci[15]
-                + (12 * Ci[16] + 13 * Ci[17] * tr) * tr) * tr) * tr) * tr) 
+                + (12 * Ci[16] + 13 * Ci[17] * tr) * tr) * tr) * tr) * tr)
                 * tr) * tr) * tr) * tr) * tr) * tr) * tr + 1.0 - con_sref);
         
         ID.ftt = -con_gas/T * (Ci[1] - Ci[0]/tr
                 + (6.0 * Ci[2]/tr + 2.0 * Ci[3])/tr/tr
-                + (2.0 * Ci[6] + (6.0 * Ci[7] + (12.0 * Ci[8]  
+                + (2.0 * Ci[6] + (6.0 * Ci[7] + (12.0 * Ci[8]
                 + (20.0 * Ci[9] + (30.0 * Ci[10] + (42.0 * Ci[11]
                 + (56.0 * Ci[12] + (72.0 * Ci[13] + (90.0 * Ci[14]
                 + (110.0 * Ci[15] + (132.0 * Ci[16] + 156.0 * Ci[17]
@@ -2104,8 +2105,8 @@ namespace H2ONaCl
         + T * RG_z3 * MP.b1 * MP.b1t * Rho/4.0)/4.0
         + (RG_k + T * RG_kt) + 1.0/Rho);
 
-        BS.ftt = con_gas  * ((((MP.b1t + T * MP.b1tt / 2) * RG_z2 
-            + T * RG_z3 * MP.b1t * MP.b1t 
+        BS.ftt = con_gas  * ((((MP.b1t + T * MP.b1tt / 2) * RG_z2
+            + T * RG_z3 * MP.b1t * MP.b1t
             * Rho / 8)/2 + (2 * RG_kt + T * RG_ktt))
         * Rho + 1.0/T);
         // cout<<"BS: "<<BS.x<<" "<<BS.f<<" "<<BS.fd<<" "<<BS.fdd<<" "<<BS.ft<<" "<<BS.ftd<<" "<<BS.ftt<<endl;
@@ -2123,30 +2124,30 @@ namespace H2ONaCl
         RS_STRUCT RS={0,0,0,0,0,0};
         for(int j=0;j<9;j++)
         {
-            double glb_k = m_Cr.g[8-j][0] + 
-                            (m_Cr.g[8-j][1] + 
-                                (m_Cr.g[8-j][2] + 
-                                    (m_Cr.g[8-j][3] + 
+            double glb_k = m_Cr.g[8-j][0] +
+                            (m_Cr.g[8-j][1] +
+                                (m_Cr.g[8-j][2] +
+                                    (m_Cr.g[8-j][3] +
                                         (m_Cr.g[8-j][4] + m_Cr.g[8-j][5] * tt * tt)* tt
                                     ) * tt
                                 ) * tt
                             ) * tt;
             // cout<<"glb_k: "<<glb_k<<endl;
-            double glb_kt = (m_Cr.g[8-j][1] + 
-                                (2 * m_Cr.g[8-j][2] + 
-                                    (3 * m_Cr.g[8-j][3] + 
+            double glb_kt = (m_Cr.g[8-j][1] +
+                                (2 * m_Cr.g[8-j][2] +
+                                    (3 * m_Cr.g[8-j][3] +
                                         (4.0 * m_Cr.g[8-j][4] + 6.0 * m_Cr.g[8-j][5] * tt * tt) * tt
                                     ) * tt
                                 ) * tt
                             ) * tt;
             // cout<<"glb_kt: "<<glb_kt<<endl;
-            double glb_ktt = (2 * m_Cr.g[8-j][1] + 
-                                (6 * m_Cr.g[8-j][2] + 
-                                    (12 * m_Cr.g[8-j][3] + 
+            double glb_ktt = (2 * m_Cr.g[8-j][1] +
+                                (6 * m_Cr.g[8-j][2] +
+                                    (12 * m_Cr.g[8-j][3] +
                                         (20 * m_Cr.g[8-j][4] + 42 * m_Cr.g[8-j][5] * tt * tt) * tt
                                     ) * tt
                                 ) * tt
-                            ) * tt; 
+                            ) * tt;
             // cout<<"glb_ktt: "<<glb_ktt<<endl;
             
             RS.f   = RS.f * dd + glb_k / ((8-j) + 1);
@@ -2154,7 +2155,7 @@ namespace H2ONaCl
             RS.fdd = RS.fdd * dd + glb_k * ((8-j) * ed/dd - 1);
             RS.ft  = RS.ft * dd + glb_kt / ((8-j) + 1);
             RS.ftd = RS.ftd * dd + glb_kt;
-            RS.ftt = RS.ftt * dd + glb_ktt/((8-j) + 1); 
+            RS.ftt = RS.ftt * dd + glb_ktt/((8-j) + 1);
             // cout<<"RS.f: "<<RS.f<<" RS.ft: "<<RS.ft<<" RS.ftt: "<<RS.ftt<<endl;
             // cout<<"RS.ftd: "<<RS.ftd<<" RS.fd: "<<RS.fd<<" RS.fdd: "<<RS.fdd<<endl;
             // exit(0);
@@ -2179,7 +2180,7 @@ namespace H2ONaCl
         for(int j=0;j<4;j++)
         {
             tau = (T - m_Cr.t[j]) / m_Cr.t[j];
-            del = (Rho - m_Cr.d[j]) / m_Cr.d[j]; 
+            del = (Rho - m_Cr.d[j]) / m_Cr.d[j];
             if(abs(del)<1e-9) del= 1e-9; // avoid division by zero
 
             dk = pow(del, m_Cr.k[j]);
@@ -2189,7 +2190,7 @@ namespace H2ONaCl
             double kt = -2 * m_Cr.b[j] * tau/m_Cr.t[j];
             double kd = (m_Cr.l[j] - m_Cr.a[j] * m_Cr.k[j] * dk)/m_Cr.d[j]/del;
             double kdd = (m_Cr.k[j] * m_Cr.a[j] * dk * (1.0 - m_Cr.k[j]) - m_Cr.l[j])/m_Cr.d[j]/m_Cr.d[j]/del/del;
-            double ktt = (4.0 * tau * tau * m_Cr.b[j] - 2.0) * m_Cr.b[j]/m_Cr.t[j]/m_Cr.t[j];    
+            double ktt = (4.0 * tau * tau * m_Cr.b[j] - 2.0) * m_Cr.b[j]/m_Cr.t[j]/m_Cr.t[j];
             // cout<<"k: "<<k<<"kt: "<<kt<<"kd: "<<kd<<" kdd: "<<kdd<<" ktt: "<<ktt<<endl;
             
             RS.f   = RS.f   +  k;
@@ -2198,7 +2199,7 @@ namespace H2ONaCl
             
             RS.ftd = RS.ftd + (k * kt * kd );
             RS.fd  =  RS.fd  + (k * kd );
-            RS.fdd =  RS.fdd + (k * (kdd + kd  * kd) ); 
+            RS.fdd =  RS.fdd + (k * (kdd + kd  * kd) );
         }
         // cout<<"RS.f: "<<RS.f<<" RS.ft: "<<RS.ft<<" RS.ftt: "<<RS.ftt<<endl;
         // cout<<"RS.ftd: "<<RS.ftd<<" RS.fd: "<<RS.fd<<" RS.fdd: "<<RS.fdd<<endl;
@@ -2416,7 +2417,7 @@ namespace H2ONaCl
         fpout<<"LOOKUP_TABLE default"<<endl;
         for(int i=0;i<props.size();i++)
         {
-            fpout<<props[i].X_l<<" "; 
+            fpout<<props[i].X_l<<" ";
         }fpout<<endl;
         // 6. Xv
         fpout<<"SCALARS Xv double"<<endl;
@@ -2568,7 +2569,7 @@ namespace H2ONaCl
         }
         return result;
     }
-    template <typename T> 
+    template <typename T>
     T cH2ONaCl:: sum_array1d(T* a, int n)
     {
         T sum=0;
@@ -2576,8 +2577,8 @@ namespace H2ONaCl
         return sum;
     };
 
-    void cH2ONaCl:: calcRho(int reg, double T_in, double P_in, double X_l, double X_v, double& Rho_l, double& Rho_v, double& Rho_h, 
-                        double& V_l_out, double& V_v_out, double& T_star_l_out, double& T_star_v_out, 
+    void cH2ONaCl:: calcRho(int reg, double T_in, double P_in, double X_l, double X_v, double& Rho_l, double& Rho_v, double& Rho_h,
+                        double& V_l_out, double& V_v_out, double& T_star_l_out, double& T_star_v_out,
                         double& n1_v_out, double& n2_v_out)
     {
         P_in = P_in/1e5; //Pa to bar
@@ -2586,19 +2587,19 @@ namespace H2ONaCl
         Rho_h = 0;
 
         V_l_out = 0;
-        T_star_l_out = 0; 
+        T_star_l_out = 0;
         V_v_out = 0;
-        T_star_v_out = 0; 
+        T_star_v_out = 0;
 
-        n1_v_out = 0; 
-        n2_v_out = 0; 
+        n1_v_out = 0;
+        n2_v_out = 0;
 
-        const double mass_h2o = 18.015/1e3; 
+        const double mass_h2o = 18.015/1e3;
         const double mass_salt = 58.443/1e3;
         const double P_crit = 220.5491;  //[bar]
         //Fitting parameters to calculate T*
         double n11  = -54.2958 - 45.7623*exp(-9.44785e-4*P_in);
-        double n21  = -2.6142 - 0.000239092*P_in; 
+        double n21  = -2.6142 - 0.000239092*P_in;
         double n22  = 0.0356828 + 4.37235e-6*P_in + 2.0566e-9*pow(P_in,2);
 //        double n300 = 7.60664e6/pow((P_in + 472.051),2);
 //        double n301 = -50 - 86.1446*exp(-6.21128e-4*P_in);
@@ -2612,7 +2613,7 @@ namespace H2ONaCl
         double n2_1 = -0.0370751 + 0.00237723*sqrt(P_in) + 5.42049e-5*P_in + 5.84709e-9*pow(P_in,2) - 5.99373e-13*pow(P_in,3);
         double n23  = n2_1 - n20 - n21*sqrt((1+n22));
         double n12  = - n10 - n11;
-        // 
+        //
         bool ind_lv=(reg==TwoPhase_L_V_X0);
         bool ind_v=(reg==SinglePhase_V || reg==TwoPhase_V_H || reg==ThreePhase_V_L_H || reg==TwoPhase_V_L_L || reg==TwoPhase_V_L_V);
         bool ind_l=(reg==SinglePhase_L || reg==TwoPhase_L_H || reg==ThreePhase_V_L_H || reg==TwoPhase_V_L_L || reg==TwoPhase_V_L_V);
@@ -2630,18 +2631,18 @@ namespace H2ONaCl
             double n2_v = n20 + n21*sqrt(X_v+n22) + n23*X_v;
             double T_star_v = n1_v + n2_v*T_in; // + D_v;  %only for low pres
             double P_star_v = P_in;
-            // double Rho_star_l=water_tp_IAPS84(P_star_v*1e5, T_star_v, 50,dRhodP, h, Mu, 1e-9, true); 
+            // double Rho_star_l=water_tp_IAPS84(P_star_v*1e5, T_star_v, 50,dRhodP, h, Mu, 1e-9, true);
             // SteamState S = freesteam_set_pT(P_star_v*1e5, T_star_v+Kelvin);
             // double Rho_star_v=freesteam_rho(S);
             double Rho_star_v=water_rho_pT(P_star_v*1e5, T_star_v+Kelvin);
-            bool ind1 = (Rho_star_v > 321.89 && P_star_v <= P_crit); 
+            bool ind1 = (Rho_star_v > 321.89 && P_star_v <= P_crit);
             bool ind2 = (std::isnan(Rho_star_v) && P_star_v <= P_crit);
             while (ind1 || ind2)
             {
                 double T_2ph, Rho_l, h_l, h_v, dpd_l, dpd_v, Rho_star_v, Mu_l, Mu_v;
                 fluidProp_crit_P(P_star_v*1e5,1e-12,T_2ph, Rho_l, h_l, h_v, dpd_l, dpd_v, Rho_star_v, Mu_l, Mu_v);
                 ind1 = (Rho_star_v > 321.89 && P_star_v <= P_crit);
-                ind2 = (std::isnan(Rho_star_v) && P_star_v <= P_crit); 
+                ind2 = (std::isnan(Rho_star_v) && P_star_v <= P_crit);
             }
             double Vol_v = 1./Rho_star_v;
             double V_v = Vol_v*mass_h2o;
@@ -2650,7 +2651,7 @@ namespace H2ONaCl
             
             V_v_out = V_v;
             T_star_v_out = T_star_v;
-            n1_v_out = n1_v; 
+            n1_v_out = n1_v;
             n2_v_out = n2_v;
         }
         if(ind_l)
@@ -2689,7 +2690,7 @@ namespace H2ONaCl
             {
                 double P_390 = 390.147;
                 double n11_P  = -54.2958 - 45.7623*exp(-9.44785e-4*P_390);
-                double n21_P  = -2.6142 - 0.000239092*P_390; 
+                double n21_P  = -2.6142 - 0.000239092*P_390;
                 double n22_P  = 0.0356828 + 4.37235e-6*P_390 + 2.0566e-9*pow(P_390,2);
                 double n20_P  = 1 - n21_P*sqrt(n22_P);
                 double n1_1_P = 330.47 + 0.942876*sqrt(P_390) + 0.0817193*P_390 - 2.47556e-8*pow(P_390,2) + 3.45052e-10*pow(P_390,3);
@@ -2704,7 +2705,7 @@ namespace H2ONaCl
                 double T_star_l_P = n1_l_P + n2_l_P*T_in_ind_l;
                 double P_400 = 400;
                 double n11_P4  = -54.2958 - 45.7623*exp(-9.44785e-4*P_400);
-                double n21_P4  = -2.6142 - 0.000239092*P_400; 
+                double n21_P4  = -2.6142 - 0.000239092*P_400;
                 double n22_P4  = 0.0356828 + 4.37235e-6*P_400 + 2.0566e-9*pow(P_400,2);
                 double n20_P4  = 1 - n21_P4*sqrt(n22_P4);
                 double n1_1_P4 = 330.47 + 0.942876*sqrt(P_400) + 0.0817193*P_400 - 2.47556e-8*pow(P_400,2) + 3.45052e-10*pow(P_400,3);
@@ -2719,7 +2720,7 @@ namespace H2ONaCl
                 double T_star_l_P4 = n1_l_P4 + n2_l_P4*T_in_ind_l;
                 double P_1000 = 1000;
                 double n11_P1  = -54.2958 - 45.7623*exp(-9.44785e-4*P_1000);
-                double n21_P1  = -2.6142 - 0.000239092*P_1000; 
+                double n21_P1  = -2.6142 - 0.000239092*P_1000;
                 double n22_P1  = 0.0356828 + 4.37235e-6*P_1000 + 2.0566e-9*pow(P_1000,2);
                 double n20_P1  = 1 - n21_P1*sqrt(n22_P);
                 double n1_1_P1 = 330.47 + 0.942876*sqrt(P_1000) + 0.0817193*P_1000 - 2.47556e-8*pow(P_1000,2) + 3.45052e-10*pow(P_1000,3);
@@ -2735,20 +2736,20 @@ namespace H2ONaCl
                 // S = freesteam_set_pT(P_390*1e5, T_star_l_P+Kelvin);
                 // double Rho_l_390=freesteam_rho(S);
                 double Rho_l_390=water_rho_pT(P_390*1e5, T_star_l_P+Kelvin);
-                double Vol_390 = mass_h2o / Rho_l_390; 
+                double Vol_390 = mass_h2o / Rho_l_390;
                 // S = freesteam_set_pT(P_400*1e5, T_star_l_P4+Kelvin);
                 // double Rho_l_400=freesteam_rho(S);
                 double Rho_l_400=water_rho_pT(P_400*1e5, T_star_l_P4+Kelvin);
-                double Vol_400 = mass_h2o / Rho_l_400;   
-                // S = freesteam_set_pT(P_1000*1e5, T_star_l_P1+Kelvin); 
+                double Vol_400 = mass_h2o / Rho_l_400;
+                // S = freesteam_set_pT(P_1000*1e5, T_star_l_P1+Kelvin);
                 // double Rho_l_1000=freesteam_rho(S);
-                double Rho_l_1000=water_rho_pT(P_1000*1e5, T_star_l_P1+Kelvin); 
-                double Vol_1000 = mass_h2o / Rho_l_1000; 
+                double Rho_l_1000=water_rho_pT(P_1000*1e5, T_star_l_P1+Kelvin);
+                double Vol_1000 = mass_h2o / Rho_l_1000;
                 double dVol_dP = (Vol_400 - Vol_390) / (P_400 - P_390);
 
                 double P_610 = P_1000 - P_390;
-                double P_1390 = P_1000 + P_390; 
-                double o4 = ( - Vol_390 + Vol_1000 - dVol_dP * (P_610) )/ ( - log(P_1390) + log( 2*P_1000 ) - (P_610/P_1390) ) ; 
+                double P_1390 = P_1000 + P_390;
+                double o4 = ( - Vol_390 + Vol_1000 - dVol_dP * (P_610) )/ ( - log(P_1390) + log( 2*P_1000 ) - (P_610/P_1390) ) ;
                 double o5 = dVol_dP - o4 / P_1390;
                 double o3 = Vol_390 - o4 * log(P_1390) - o5 * P_390;
                 double V_l_ind_high = o3 + o4 * log(P_star_l+P_1000) + o5 * P_star_l;
@@ -2756,7 +2757,7 @@ namespace H2ONaCl
             }
             Rho_l = (mass_sol_l/V_l);
             V_l_out = V_l;
-            T_star_l_out = T_star_l; 
+            T_star_l_out = T_star_l;
             // cout<<"Rho_l: "<<Rho_l<<" V_l_out: "<<V_l_out<<" T_star_l_out: "<<T_star_l_out<<endl;
         }
         if(ind_h)
@@ -2786,7 +2787,7 @@ namespace H2ONaCl
         double T_star_v_out = 0;
         //Fitting parameters to calculate T*
         double q11  = -32.1724 + 0.0621255*P_in;
-        double q21  = -1.69513 - 4.52781e-4*P_in - 6.04279e-8*pow(P_in,2); 
+        double q21  = -1.69513 - 4.52781e-4*P_in - 6.04279e-8*pow(P_in,2);
         double q22  = 0.0612567 + 1.88082e-5*P_in;
         double q1_1 = 47.9048 - 9.36994e-3*P_in;
         double q2_1 = 0.241022 + 3.45087e-5*P_in - 4.28356e-9*pow(P_in,2);
@@ -2801,8 +2802,8 @@ namespace H2ONaCl
         //FIND ENTHALPY OF VAPOUR
         //find coeff
         bool ind_lv = ( reg==TwoPhase_L_V_X0 );
-        bool ind_v  = ( reg == SinglePhase_V || reg == TwoPhase_V_H || reg ==ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V ); 
-        bool ind_l  = ( reg == SinglePhase_L ||  reg == TwoPhase_L_H || reg ==ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V ); 
+        bool ind_v  = ( reg == SinglePhase_V || reg == TwoPhase_V_H || reg ==ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V );
+        bool ind_l  = ( reg == SinglePhase_L ||  reg == TwoPhase_L_H || reg ==ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V );
         bool ind_h  = (reg==TwoPhase_L_H || reg==TwoPhase_V_H || reg==ThreePhase_V_L_H);
         if(ind_lv)
         {
@@ -2814,21 +2815,21 @@ namespace H2ONaCl
             double q1_v = q10 + q11*(1-X_v) + q12*pow((1-X_v),2);
             double q2_v = q20 + q21*sqrt(X_v+q22) + q23*X_v;
 
-            double T_star_v = q1_v + q2_v*T_in; 
+            double T_star_v = q1_v + q2_v*T_in;
             double P_star_v = P_in;
             // SteamState S = freesteam_set_pT(P_star_v*1e5, T_star_v+Kelvin);
             // h_v=freesteam_h(S);
             h_v=water_h_pT(P_star_v*1e5, T_star_v+Kelvin);
-            bool ind1 = (h_v < 2.086e6 && P_star_v < P_crit);// & P_star_v > 40); 
-            bool ind2 = (std::isnan(h_v) && P_star_v < P_crit);// & P_star_v > 40); 
+            bool ind1 = (h_v < 2.086e6 && P_star_v < P_crit);// & P_star_v > 40);
+            bool ind2 = (std::isnan(h_v) && P_star_v < P_crit);// & P_star_v > 40);
             while (ind1 || ind2)
             {
                 double T_2ph0, Rho_l0, h_l0, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0;
                 fluidProp_crit_P(P_star_v*1e5, 1e-12,T_2ph0, Rho_l0, h_l0, h_v, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0);
                 ind1 = (h_v < 2.086e6 && P_star_v < P_crit && P_star_v > 40);
-                ind2 = (std::isnan(h_v) && P_star_v < P_crit && P_star_v > 40); 
+                ind2 = (std::isnan(h_v) && P_star_v < P_crit && P_star_v > 40);
             }
-            T_star_v_out= T_star_v; 
+            T_star_v_out= T_star_v;
         }
         // FIND ENTHALPY OF LIQUID
         if(ind_l)
@@ -2856,7 +2857,7 @@ namespace H2ONaCl
                 // double h_l_minus=freesteam_h(S);
                 double h_l_minus=water_h_pT(P_star_l*1e5, T_crit-1+Kelvin);
                 double dh_ldT = (h_l_crit - h_l_minus)/1;
-                double o1 = dh_ldT ; 
+                double o1 = dh_ldT ;
                 double o0 = h_l_crit - o1 * T_crit ;
                 h_l = o0 + o1 *  T_star_l;
             }
@@ -2867,7 +2868,7 @@ namespace H2ONaCl
                 double P_390 = 390.147;
                 // const for P = 390.147 bar
                 q11  = -7.934322551500003;
-                q21  = -1.880979162365801; 
+                q21  = -1.880979162365801;
                 q22  =  0.068594662805400;
                 q12  = -36.31482346732;
                 q10  =  44.24914601882;
@@ -2879,7 +2880,7 @@ namespace H2ONaCl
 
                 double P4 = 400;
                 q11  = -7.322200000000002;
-                q21  = -1.885910864000000; 
+                q21  = -1.885910864000000;
                 q22  = 0.068779980000000;
                 q12  = -36.834624000000000;
                 q10  = 44.156824000000000;
@@ -2891,7 +2892,7 @@ namespace H2ONaCl
                 
                 double P1 = 1000;
                 q11  = 29.953100000000000;
-                q21  = -2.208338900000000; 
+                q21  = -2.208338900000000;
                 q22  = 0.080064900000000;
                 q12  = -68.487960000000000;
                 q10  = 38.534860000000000;
@@ -2915,8 +2916,8 @@ namespace H2ONaCl
                 // printf("hl390: %f, hl400: %f, hl1000: %f\n",h_l_390, h_l_400, h_l_1000);
                 double dh_l_dP = (h_l_400 - h_l_390) / (P4 - P_390);
                 double P_610 = P1 - P_390;
-                double P_1390 = P1 + P_390; 
-                double o4 = ( - h_l_390 + h_l_1000 - dh_l_dP * (P_610) )/( - log(P_1390) + log( 2*P1 ) - (P_610/P_1390) ) ; 
+                double P_1390 = P1 + P_390;
+                double o4 = ( - h_l_390 + h_l_1000 - dh_l_dP * (P_610) )/( - log(P_1390) + log( 2*P1 ) - (P_610/P_1390) ) ;
                 double o5 = dh_l_dP - o4 / P_1390;
                 double o3 = h_l_390 - o4 * log(P_1390) - o5 * P_390;
                 double h_l_ind_high = o3 + o4 * log(P_star_l+P1) + o5 * P_star_l;
@@ -2944,7 +2945,7 @@ namespace H2ONaCl
         if(ind_l)
         {
             double e1 = a1 * pow(Xw_l,a2);
-            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_l,a2) * pow(T,b2); 
+            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_l,a2) * pow(T,b2);
             double T_star_l = e1 + e2 * T;
             if(std::isnan(T_star_l))T_star_l = 0;
             // SteamState S = freesteam_set_pT(P, T_star_l+Kelvin);
@@ -2960,7 +2961,7 @@ namespace H2ONaCl
         if(ind_v)
         {
             double e1 = a1 * pow(Xw_v,a2);
-            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_v,a2) * pow(T,b2); 
+            double e2 = 1 - b1 * pow(T,b2) - b3 * pow(Xw_v,a2) * pow(T,b2);
             double T_star_v = e1 + e2 * T;
             
             bool ind_0 = (T_star_v > 0);
@@ -3049,10 +3050,10 @@ namespace H2ONaCl
             // very very important!!!!
             prop0 = freeProp(prop0);
             return d;
-        #else 
+        #else
             SteamState S = freesteam_set_pT(p, T_K);
             return freesteam_rho(S);
-        #endif 
+        #endif
     }
 
     double cH2ONaCl::water_h_pT(double p, double T_K)
@@ -3070,10 +3071,10 @@ namespace H2ONaCl
             // very very important!!!!
             prop0 = freeProp(prop0);
             return h;
-        #else 
+        #else
             SteamState S = freesteam_set_pT(p, T_K);
             return freesteam_h(S);
-        #endif 
+        #endif
     }
     double cH2ONaCl::water_mu_pT(double p, double T_K)
     {
@@ -3104,10 +3105,10 @@ namespace H2ONaCl
             // very very important!!!!
             prop0 = freeProp(prop0);
             return mu;
-        #else 
+        #else
             SteamState S = freesteam_set_pT(p, T_K);
             return freesteam_mu(S);
-        #endif 
+        #endif
     }
     double cH2ONaCl::water_mu_ph(double p, double h, double T_K)
     {
@@ -3346,7 +3347,7 @@ namespace H2ONaCl
     void cH2ONaCl::createTable4_Driesner2007a(TABLE4 & table4)
     {
         // Table 4 of Driesner and Heinrich(2007)
-        double c[14] = {-2.36, 0.128534, -0.023707, 0.00320089, -0.000138917, 
+        double c[14] = {-2.36, 0.128534, -0.023707, 0.00320089, -0.000138917,
                         1.02789E-07, -4.8376E-11, 2.36, -0.0131417, 0.00298491,
                         -0.000130114, 0, 0, -0.000488336};// c[11] and c[12] are calculated below
         double cA[11] = {1, 1.5, 2, 2.5, 3, 4, 5, 1, 2, 2.5, 3};
@@ -3358,16 +3359,16 @@ namespace H2ONaCl
             c[12] += c[i] * cA[i] * pow(500 - H2O::T_Critic, cA[i] - 1); //the first temperature derivative of eq. 5b
         }
         c[11] = H2O::P_Critic + c[11];
-        double d[11] = {8E-05, 1E-05, -1.37125E-07, 9.46822E-10, -3.50549E-12, 6.57369E-15, 
+        double d[11] = {8E-05, 1E-05, -1.37125E-07, 9.46822E-10, -3.50549E-12, 6.57369E-15,
                         -4.89423E-18, 7.77761E-2, 2.7042E-4, -4.244821E-07, 2.580872E-10};
-        // copy 
+        // copy
         for(int i=0;i<14; i++)table4.c[i]    = c[i];
         for(int i=0;i<11; i++)table4.cA[i]   = cA[i];
         for(int i=0;i<11; i++)table4.d[i]    = d[i];
     }
     /**
      * - Pressure
-     * 
+     *
      * \f{equation}
      *      P_{crit} = \left\{ \begin{matrix}
      *      P_{crit}^{H_2O} + \sum\limits_{n=1}^{7} c_n (T_{crit}^{H_2O} - T)^{c_nA} & , T< T_{crit}^{H_2O} \ (\text{eq. 5a})\\ \\[1ex]
@@ -3375,22 +3376,22 @@ namespace H2ONaCl
      *      \sum\limits_{n=12}^{14} c_n (T - 500)^{n-12} & , T > 500 ^{\circ}C \ (\text{eq. 5c})\\ \\[1ex]
      *      \end{matrix}\right.
      * \f}
-     * 
+     *
      * - Salinity
-     * 
+     *
      * \f{equation}
      *      X_{crit} = \left\{ \begin{matrix}
      *      \sum\limits_{i=1}^{7} d_i (T - T_{crit}^{H_2O})^{i} & , T_{crit}^{H_2O} \le T \le 600 ^{\circ}C \ (\text{eq. 7a}) \\ \\[1ex]
      *      \sum\limits_{i=8}^{11} d_i (T - 600 ^{\circ}C)^{i-8} & , 600 < T \le 1000 ^{\circ}C \ (\text{eq. 7b})\\ \\[1ex]
      *      \end{matrix}\right.
      * \f}
-     * 
+     *
      * \image html Driesner_Heinrich_Fig5.png "Critical pressure." width=50%.
-     * Critical pressure, figure 5 of reference \cite Driesner2007Part1. 
+     * Critical pressure, figure 5 of reference \cite Driesner2007Part1.
      * \image html Driesner_Heinrich_Fig6.png "Critical composition." width=50%.
-     * Critical composition, figure 6 of reference \cite Driesner2007Part1. 
-     * 
-     * \image html HaliteCriticalCurves.svg "Critical pressure and composition." width=50%. 
+     * Critical composition, figure 6 of reference \cite Driesner2007Part1.
+     *
+     * \image html HaliteCriticalCurves.svg "Critical pressure and composition." width=50%.
      * Critical pressure (a,b) and composition (c,d) as function of temperature. (a,c) Full range, (b,d) the region just above the critical temperature of water
      * \warning Critical pressure calculated by Eq. 5a is different (up to 9 bar) from boiling curve of pure water. The physical meaning would be the same, but due to some numerical reason, they are not completely same.
      */
@@ -3430,7 +3431,7 @@ namespace H2ONaCl
         {
             cout<<WARN_COUT<<"T: "<<T<<" out of temperature range: ["<<H2ONaCl::TMIN_C<<", "<<H2ONaCl::TMAX_C<<"]"<<endl;
         }
-    } 
+    }
     void cH2ONaCl::P_X_Critical(std::vector<double> T, std::vector<double>& P_crit, std::vector<double>& X_crit)
     {
         P_crit.resize(T.size());
@@ -3461,29 +3462,29 @@ namespace H2ONaCl
         }
     };
     /**
-     * The liqudius is fitted with the equation 
-     * 
+     * The liqudius is fitted with the equation
+     *
      * \f{equation}
      * X_{NaCl, sat}^L = \sum\limits_{i=0}^5 e_i\left(\frac{T}{T_{hm}}\right)^i
      * \f}
      * with the pressure-dependent coefficients \f$ e_i \f$ given in Table 5 of reference \cite Driesner2007Part1 and the pressure-dependent melting temperature of halite, \f$ T_{hm}\f$, calculated from NaCl::cNaCl::T_Melting (equation (1) of reference \cite Driesner2007Part1.)
-     * 
-     * \image html Driesner_Heinrich_Fig7.png "Liquid composition for the halite liquidus." width=50%. 
+     *
+     * \image html Driesner_Heinrich_Fig7.png "Liquid composition for the halite liquidus." width=50%.
      * Liquid composition for the halite liquidus. (a) Full range temperature-pressure dependence, sets of symbols are for the same pressures as sets of lines; (b) pressure dependence at 25 \f$ ^{\circ}C \f$ (Figure 7 of reference \cite Driesner2007Part1)
-     * 
-     * \image html HaliteLiquidus.svg "Liquid composition for the halite liquidus calculated using H2ONaCl." width=50%. 
+     *
+     * \image html HaliteLiquidus.svg "Liquid composition for the halite liquidus calculated using H2ONaCl." width=50%.
      * Liquid composition for the halite liquidus calculated using #H2ONaCl -> #cH2ONaCl ->#X_HaliteLiquidus. (a) Full range temperature-pressure dependence, sets of symbols are for the same pressures as sets of lines; (b) pressure dependence at 25 \f$ ^{\circ}C \f$ (Figure 7 of reference \cite Driesner2007Part1)
-     *  
+     *
      */
     double cH2ONaCl::X_HaliteLiquidus(double T, double P)
     {
         const double P_squre = P*P;
         // Table 5 of Driesner and Heinrich(2007)
-        double e[6] = {0.0989944 + 3.30796E-06 * P - 4.71759E-10 * P_squre, 
-                       0.00947257 - 8.6646E-06 * P + 1.69417E-09 * P_squre, 
-                       0.610863 - 1.51716E-05 * P + 1.1929E-08 * P_squre, 
-                       -1.64994 + 0.000203441 * P - 6.46015E-08 * P_squre, 
-                       3.36474 - 0.000154023 * P + 8.17048E-08 * P_squre, 
+        double e[6] = {0.0989944 + 3.30796E-06 * P - 4.71759E-10 * P_squre,
+                       0.00947257 - 8.6646E-06 * P + 1.69417E-09 * P_squre,
+                       0.610863 - 1.51716E-05 * P + 1.1929E-08 * P_squre,
+                       -1.64994 + 0.000203441 * P - 6.46015E-08 * P_squre,
+                       3.36474 - 0.000154023 * P + 8.17048E-08 * P_squre,
                        1
                         };
         for (size_t i = 0; i < 5; i++)
@@ -3513,13 +3514,13 @@ namespace H2ONaCl
      * \f{equation}
      * \frac{X_{NaCl, sat}^{L, metastable}}{X_{NaCl, sat}^V} = K
      * \f}
-     * A modified distribution coefficient \f$ K^{\prime} \f$ (this is actually used to compute halite-saturated vapor composition) is defined as (eq. 14 of ref. \cite Driesner2007Part1), 
-     * 
+     * A modified distribution coefficient \f$ K^{\prime} \f$ (this is actually used to compute halite-saturated vapor composition) is defined as (eq. 14 of ref. \cite Driesner2007Part1),
+     *
      * \f{equation}
      * log_{10}K^{\prime} = log_{10}\left( \frac{x_l}{x_v/(\frac{P_{NaCl}}{P})} \right) = log_{10} \left( \frac{x_l}{x_v} \right) + log_{10} \left( \frac{P_{NaCl}}{P} \right)
      * \f}
      * where \f$ x_l \f$ is calculated from #X_HaliteLiquidus, \f$ P_{NaCl} \f$ is the boling pressure or sublimation pressure depends on temperature, it can be expressed as,
-     * 
+     *
      * \f{equation}
      *      P_{NaCl} = \left\{ \begin{matrix}
      *      log_{10}(P_{NaCl, liquid}),& T > T_{triple, NaCl} \\ \\[1ex]
@@ -3527,22 +3528,22 @@ namespace H2ONaCl
      *      \end{matrix}\right.
      * \f}
      * \f$ P_{NaCl, liquid} \f$ and \f$ P_{NaCl, halite} \f$ are calculated from NaCl::cNaCl::P_Boiling and NaCl::cNaCl::P_HaliteSublimation, respectively. And \f$ log_{10}K^{\prime} \f$ can be computed from following equation (eq. 15 of ref. \cite Driesner2007Part1),
-     * 
+     *
      * \f{equation}
      * log_{10}\bar K = \frac{log_{10}K^{\prime} - log_{10}\left( X_{NaCl, sat}^L \right)_{P_{NaCl}}}{log_{10}\left( \frac{P_{NaCl}}{P_{crit}} \right) - log_{10}\left( X_{NaCl, sat}^L \right)_{P_{NaCl}}} = 1 + j_0(1-\bar P)^{j_1} + j_2(1-\bar P) + j_3(1-\bar P)^{2} - (1 + j_0 + j_2 + j_3)(1-\bar P)^{3}
      * \f}
-     * where \f$ P_{crit} \f$ is calculated from #P_X_Critical, \f$ X_{NaCl, sat}^L \f$ is calculated from #X_HaliteLiquidus (T, \f$ P_{NaCl} \f$), \f$ \bar P = (P - P_{NaCl})/(P_{crit} - P_{NaCl})\f$ is the normalized pressure, \f$ j_i (i=0, 1, 2,, 3) \f$ is calculated from Table 8 of reference \cite Driesner2007Part1. 
-     * 
-     * \image html Driesner_Heinrich_Fig8.png "Halite-saturated vapor composition in comparison to experimental data." width=50%. 
+     * where \f$ P_{crit} \f$ is calculated from #P_X_Critical, \f$ X_{NaCl, sat}^L \f$ is calculated from #X_HaliteLiquidus (T, \f$ P_{NaCl} \f$), \f$ \bar P = (P - P_{NaCl})/(P_{crit} - P_{NaCl})\f$ is the normalized pressure, \f$ j_i (i=0, 1, 2,, 3) \f$ is calculated from Table 8 of reference \cite Driesner2007Part1.
+     *
+     * \image html Driesner_Heinrich_Fig8.png "Halite-saturated vapor composition in comparison to experimental data." width=50%.
      * Halite-saturated vapor composition in comparison to experimental data. (a) Isotherms, (b) isobars (Figure 8 of reference \cite Driesner2007Part1)
-     * 
-     * \image html HaliteSaturatedVaporComposition.svg "Halite-saturated vapor composition calculawithted using H2ONaCl." width=50%. 
-     * Halite-saturated vapor composition calculated using #H2ONaCl -> #cH2ONaCl ->#X_VaporHaliteCoexist. 
+     *
+     * \image html HaliteSaturatedVaporComposition.svg "Halite-saturated vapor composition calculawithted using H2ONaCl." width=50%.
+     * Halite-saturated vapor composition calculated using #H2ONaCl -> #cH2ONaCl ->#X_VaporHaliteCoexist.
      */
     double cH2ONaCl::X_VaporHaliteCoexist(double T, double P)
     {
         // Table 8 of Driesner and Heinrich(2007)
-        double k[16] = {-0.235694, -0.188838, 0.004, 0.0552466, 0.66918, 396.848, 45, -3.2719E-07, 
+        double k[16] = {-0.235694, -0.188838, 0.004, 0.0552466, 0.66918, 396.848, 45, -3.2719E-07,
                         141.699, -0.292631, -0.00139991, 1.95965E-06, -7.3653E-10, 0.904411, 0.000769766,-1.18658E-06};
         double j[4]={0,0,0,0};
         j[0] = k[0] + k[1] * exp(-k[2] * T);
@@ -3575,8 +3576,8 @@ namespace H2ONaCl
         }
         double one_minus_P_normalized = 1 - P_normalized; //used in eq. 17
         // eq. 17
-        double log10_K_overline = 1 + j[0]*pow(one_minus_P_normalized, j[1]) 
-                                    + j[2]*one_minus_P_normalized 
+        double log10_K_overline = 1 + j[0]*pow(one_minus_P_normalized, j[1])
+                                    + j[2]*one_minus_P_normalized
                                     + j[3]*pow(one_minus_P_normalized, 2)
                                     - (1 + j[0] + j[2] + j[3])*pow(one_minus_P_normalized, 3);
         double log10_XL_P_NaCl = log10(X_HaliteLiquidus(T, P_NaCl)); //used in eq. 15
@@ -3593,12 +3594,12 @@ namespace H2ONaCl
      * P_{VLH} = \sum\limits_{i=0}^{10}f_i\left( \frac{T}{T_{triple, NaCl}} \right)
      * \f}
      * where \f$ f_i (i=0,...,10) \f$ are computed from Table 6 of ref. \cite Driesner2007Part1, \f$ T_{triple, NaCl} \f$ is the temperature at triple point of NaCl, which is defined as #NaCl::T_Triple.
-     * 
-     * \image html Driesner_Heinrich_Fig9.png "Pressure at vapor + liquid + halite coexistence." width=50%. 
+     *
+     * \image html Driesner_Heinrich_Fig9.png "Pressure at vapor + liquid + halite coexistence." width=50%.
      * Pressure at vapor + liquid + halite coexistence. (a) Full range, (b) low temperatures, logarithmic pressure scale. (Figure 9 of reference \cite Driesner2007Part1)
-     * 
-     * \image html Pressure_VLH.svg "Pressure at vapor + liquid + halite coexistence calculated using H2ONaCl." width=50%. 
-     * Pressure at vapor + liquid + halite coexistence calculated using #H2ONaCl -> #cH2ONaCl ->#P_VaporLiquidHaliteCoexist. 
+     *
+     * \image html Pressure_VLH.svg "Pressure at vapor + liquid + halite coexistence calculated using H2ONaCl." width=50%.
+     * Pressure at vapor + liquid + halite coexistence calculated using #H2ONaCl -> #cH2ONaCl ->#P_VaporLiquidHaliteCoexist.
      */
     double cH2ONaCl::P_VaporLiquidHaliteCoexist(double T)
     {
@@ -3719,7 +3720,7 @@ namespace H2ONaCl
         // f(x)=f0 - P + f1*x + f2*x^2 + ... + f10*x^{10} = 0, where x=T/T_{triple, NaCl}
         const int degree = 10;
         double f[11] = {0.00464, 5E-07, 16.9078, -269.148, 7632.04, -49563.6, 233119.0, -513556.0, 549708.0, -284628.0, NaCl::P_Triple};
-        for (size_t i = 0; i < 10; i++) 
+        for (size_t i = 0; i < 10; i++)
         {
             f[10] -= f[i];
         }
@@ -3762,15 +3763,15 @@ namespace H2ONaCl
      * X_{NaCl}^{VL, liq} = X_{crit} + g_0 \sqrt{P_{crit} - P} + g_1 (P_{crit} - P) +g_2(P_{crit} - P)^2
      * \f}
      * where \f$ g_1, g_2\f$ can be found in Table 7 of ref. \cite Driesner2007Part1, \f$ P_{crit}\f$ and \f$ X_{crit}\f$ are calculated from #P_X_Critical.
-     * 
-     * \image html X_VaporLiquidCoexistSurface.svg "Isothermal sections of the V + L surface calculated using H2ONaCl." width=100%. 
+     *
+     * \image html X_VaporLiquidCoexistSurface.svg "Isothermal sections of the V + L surface calculated using H2ONaCl." width=100%.
      * Isothermal sections of the V + L surface calculated using #H2ONaCl -> #cH2ONaCl ->#X_VaporLiquidCoexistSurface_LiquidBranch for liquid branch and #X_VaporLiquidCoexistSurface_VaporBranch for vapor branch. See also Fig. 12 of ref. \cite Driesner2007Part1.
-     * 
+     *
      */
     double cH2ONaCl::X_VaporLiquidCoexistSurface_LiquidBranch(double T, double P)
     {
         // Table 7 of Driesner and Heinrich(2007)
-        double h[11]={0.00168486, 0.000219379, 438.58, 18.4508, -5.6765E-10, 6.73704E-06, 
+        double h[11]={0.00168486, 0.000219379, 438.58, 18.4508, -5.6765E-10, 6.73704E-06,
                       1.44951E-07, 384.904, 7.07477, 6.06896E-05, 0.00762859};
         double g0 = 0;
         double g1 = h[1] + (h[0] - h[1]) / (1 + exp((T - h[2]) / h[3])) + h[4] * T*T;
@@ -3818,7 +3819,7 @@ namespace H2ONaCl
     double cH2ONaCl::X_VaporLiquidCoexistSurface_VaporBranch(double T, double P)
     {
         // Table 8 of Driesner and Heinrich(2007)
-        double k[16] = {-0.235694, -0.188838, 0.004, 0.0552466, 0.66918, 396.848, 45, -3.2719E-07, 
+        double k[16] = {-0.235694, -0.188838, 0.004, 0.0552466, 0.66918, 396.848, 45, -3.2719E-07,
                         141.699, -0.292631, -0.00139991, 1.95965E-06, -7.3653E-10, 0.904411, 0.000769766, -1.18658E-06};
         double j[4]={0,0,0,0};
         j[0] = k[0] + k[1] * exp(-k[2] * T);
@@ -3852,8 +3853,8 @@ namespace H2ONaCl
         }
         double one_minus_P_normalized = 1 - P_normalized; //used in eq. 17
         // eq. 17
-        double log10_K_overline = 1 + j[0]*pow(one_minus_P_normalized, j[1]) 
-                                    + j[2]*one_minus_P_normalized 
+        double log10_K_overline = 1 + j[0]*pow(one_minus_P_normalized, j[1])
+                                    + j[2]*one_minus_P_normalized
                                     + j[3]*pow(one_minus_P_normalized, 2)
                                     - (1 + j[0] + j[2] + j[3])*pow(one_minus_P_normalized, 3);
 
@@ -3898,21 +3899,21 @@ namespace H2ONaCl
     /**
      * \image html Driesner2007_Fig2.png "Molar volume of brine" width=25%.
      * Fig. 2 of \cite Driesner2007Part2. Graphical illustration of the principle used to derive correlations for molar volumes: the molar volume of an aqueous NaCl solution (here: 10 wt% NaCl at 1000 bar) at temperature T is identical to that of pure water at a different temperature \f$ T_V^* \f$.
-     * 
+     *
      * \f{equation}
      * T_V^* = n_1 + n_2T + D(T)
      * \f}
-     * where \f$ n_1, n_2\f$ are calculated from equation (9-12, 14-16) and Table 4 of \cite Driesner2007Part2. 
-     * 
-     * \image html V_brine_T_P1000bar.svg "Molar volume of brine calculated using swEOS." width=25%. 
-     * 
+     * where \f$ n_1, n_2\f$ are calculated from equation (9-12, 14-16) and Table 4 of \cite Driesner2007Part2.
+     *
+     * \image html V_brine_T_P1000bar.svg "Molar volume of brine calculated using swEOS." width=25%.
+     *
      * \image html Driesner2007_Fig5.png "Examples for low temperature (a) and high temperature (b) cases" width=50%.
-     * Fig. 5 of \cite Driesner2007Part2. Examples for low temperature (a) and high temperature (b) cases where the \f$ T - T_V^* \f$ correlation cannot be applied. 
-     * 
-     * \image html V_brine_NaCl_lowThighT.svg "Examples for low temperature (a) and high temperature (b) cases calculated by swEOS." width=50%. 
-     * 
+     * Fig. 5 of \cite Driesner2007Part2. Examples for low temperature (a) and high temperature (b) cases where the \f$ T - T_V^* \f$ correlation cannot be applied.
+     *
+     * \image html V_brine_NaCl_lowThighT.svg "Examples for low temperature (a) and high temperature (b) cases calculated by swEOS." width=50%.
+     *
      * \bug 为什么图Fig. 5a(\cite Driesner2007Part2)不一致？因为在P=5 bar(低压)情况下，根据\f$ T_V^* \f$ 计算得到的水的密度在148 \f$^{\circ}\text{C} \f$附近存在跳跃，这是由于在此温度附近发生了相变！如下图所示。 \b 所以问题是： 为什么文献 \cite Driesner2007Part2 中的Fig. 5a能够得到一个超过150\f$^{\circ}\text{C} \f$ 的\f$ V_{sat}\f$曲线 ？
-     * 
+     *
      * \image html water_rho_lowP.svg "Water density in low pressure region" width=25%.
      */
     double cH2ONaCl::T_star_V(double T, double P, double X_NaCl)
@@ -3945,7 +3946,7 @@ namespace H2ONaCl
      */
     double cH2ONaCl::V_extrapol(double T, double P, double X)
     {
-        //DEBUG: V_Extrapol(x_in, T_in, P_in) 
+        //DEBUG: V_Extrapol(x_in, T_in, P_in)
         double X_L_sat = X_HaliteLiquidus(T, P);
         double o0 = 0, o1 = 0, o2 = 0, o3=0, o4=0, o5=0, V1 = 0, V2 = 0;
         double TT=T*T;
@@ -4032,7 +4033,7 @@ namespace H2ONaCl
     }
     void cH2ONaCl::writeCriticalCurve(string filename,double Tmin, double Tmax, double dT, fmtOutPutFile fmt)
     {
-        // 1. Calculate 
+        // 1. Calculate
         double P_crit=0, X_crit=0;
         vector<double> vecT, vecP, vecX;
         const double lenT=TMAX_C-TMIN_C, lenP=PMAX-PMIN, lenX=XMAX-XMIN;
@@ -4059,7 +4060,7 @@ namespace H2ONaCl
     void cH2ONaCl::writeNaClMeltingCurve(string filename,double Pmin, double Pmax, double dP, fmtOutPutFile fmt)
     {
         const double lenT=TMAX_C-TMIN_C, lenP=PMAX-PMIN, lenX=XMAX-XMIN;
-        // 1. Calculate 
+        // 1. Calculate
         double T=0;
         vector<double> vecT, vecP, vecX;
         for (double P = Pmin; P < Pmax; P=P+dP)
@@ -4085,7 +4086,7 @@ namespace H2ONaCl
     void cH2ONaCl::writeVaporLiquidHalite_V_L_H_Curve(string filename,double Tmin, double Tmax, fmtOutPutFile fmt, int nT)
     {
         const double lenT=TMAX_C-TMIN_C, lenP=PMAX-PMIN, lenX=XMAX-XMIN;
-        // 1. Calculate 
+        // 1. Calculate
         double dT=(Tmax-Tmin)/(nT-1);
         double T, P, X_L, X_V=0, X_H=1;
         vector<double> vecT, vecP, vecX_L, vecX_V, vecX_H;
@@ -4119,7 +4120,7 @@ namespace H2ONaCl
     void cH2ONaCl::writeH2OBoilingCurve(string filename,double Tmin, double Tmax, H2ONaCl::fmtOutPutFile fmt,int nT)
     {
         const double lenT=TMAX_C-TMIN_C, lenP=PMAX-PMIN, lenX=XMAX-XMIN;
-        // 1. Calculate 
+        // 1. Calculate
         double dT=(Tmax-Tmin)/(nT-1);
         double T, P;
         vector<double> vecT, vecP, vecX;
@@ -4530,13 +4531,13 @@ namespace H2ONaCl
         
         double dP = (Pmax - Pmin)/(nP-1);
         int nT=100;
-        // for case of P < Pmax_VLH 
+        // for case of P < Pmax_VLH
         std::vector<std::vector<double> > vec2P, vec2H_part1, vec2X_part1, vec2H_part2, vec2X_part2, vec2X_VH, vec2H_VH, vec2P_VH;
         std::vector<std::vector<double> > vec2P_LH_part1, vec2P_LH_part2, vec2H_LH_part1, vec2X_LH_part1, vec2H_LH_part2, vec2X_LH_part2;
         std::vector<std::vector<double> > vec2P_VL_part1, vec2H_VL_part1, vec2X_VL_part1, vec2P_VL_part2, vec2H_VL_part2, vec2X_VL_part2;
         std::vector<std::vector<double> > vec2P_L_part1, vec2H_L_part1, vec2X_L_part1;
         std::vector<std::vector<double> > vec2P_L_part2, vec2H_L_part2, vec2X_L_part2;
-        // for case of P > Pmax_VLH 
+        // for case of P > Pmax_VLH
         std::vector<std::vector<double> > vec2P_LH_highP, vec2H_LH_highP, vec2X_LH_highP;
         std::vector<std::vector<double> > vec2P_VL_highP, vec2H_VL_highP, vec2X_VL_highP;
         std::vector<std::vector<double> > vec2P_L, vec2H_L, vec2X_L;
@@ -4588,7 +4589,7 @@ namespace H2ONaCl
                 int nT_normal = nT - nT_refine;
                 double Tmax_VL = prop1.T - 1;
                 double deltaT_refine = (Tmax_VL - T_crit)*0.03;
-                double T_crit_bigger = T_crit + deltaT_refine; 
+                double T_crit_bigger = T_crit + deltaT_refine;
                 double dT_refine = deltaT_refine/(nT_refine - 1);
                 double dT_normal = (Tmax_VL - T_crit_bigger)/(nT_normal - 1);
                 std::vector<double> vecT(nT);
@@ -4679,7 +4680,7 @@ namespace H2ONaCl
                 // calculate maximum H and corresponding X according to maximum T
                 H2ONaCl::PROP_H2ONaCl prop_XminTmax = prop_pTX(P0_Pa, TMAX_K, XMIN+1E-8);
                 std::vector<double> vecP_VL_part2(nT+2,P0), vecH_VL_part2(nT+2), vecX_VL_part2(nT+2);
-                dT = (TMAX_C - prop2.T)/(nT - 1); 
+                dT = (TMAX_C - prop2.T)/(nT - 1);
                 vecH_VL_part2[0] = prop2.H_v;
                 vecX_VL_part2[0] = 0;
                 for (size_t k = 0; k < nT; k++)
@@ -4756,7 +4757,7 @@ namespace H2ONaCl
                 int nT_refine = (int)(nT/3.0*2);
                 int nT_normal = nT - nT_refine;
                 double deltaT_refine = (TMAX_C - T_crit)*0.1;
-                double T_crit_bigger = T_crit + deltaT_refine; 
+                double T_crit_bigger = T_crit + deltaT_refine;
                 double dT_refine = deltaT_refine/(nT_refine - 1);
                 double dT_normal = (TMAX_C - T_crit_bigger)/(nT_normal - 1);
                 std::vector<double> vecT(nT);
@@ -4843,7 +4844,7 @@ namespace H2ONaCl
 
     void cH2ONaCl::parse_update_which_props(int update_which_props)
     {
-        if(m_update_which_props.size()>0)m_update_which_props.clear(); //safety check 
+        if(m_update_which_props.size()>0)m_update_which_props.clear(); //safety check
 
         // bitmask
         for(auto &ind2name_prop : m_supported_props)
@@ -4914,7 +4915,7 @@ namespace H2ONaCl
                 }
             }
 
-            // 
+            //
             STATUS_time("Lookup table refinement done", (clock() - start)/m_num_threads);
             tmp_lut_2D->construct_props_leaves(cal_prop_PHX);
         }else
@@ -4956,7 +4957,7 @@ namespace H2ONaCl
                     tmp_lut_3D->refine(RefineFunc_PTX);
                 }
             }
-            // 
+            //
             STATUS_time("Lookup table refinement done", (clock() - start)/m_num_threads);
             tmp_lut_3D->construct_props_leaves(cal_prop_PTX);
         }else if (tmp_lut_3D->m_TorH == LOOKUPTABLE_FOREST::EOS_ENERGY_H)
@@ -4973,7 +4974,7 @@ namespace H2ONaCl
                     tmp_lut_3D->refine(RefineFunc_PHX);
                 }
             }
-            // 
+            //
             STATUS_time("Lookup table refinement done", (clock() - start)/m_num_threads);
             tmp_lut_3D->construct_props_leaves(cal_prop_PHX);
         }else
@@ -5167,7 +5168,7 @@ namespace H2ONaCl
             {
                 double xy[2] = {x, y};
                 interp_quad_prop<2>(targetLeaf,xyz_min_target, props, xy);
-            } 
+            }
         }
         else
         {

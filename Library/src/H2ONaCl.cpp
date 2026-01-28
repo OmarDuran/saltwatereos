@@ -476,88 +476,84 @@ namespace H2ONaCl
         prop.P = p; prop.H = H; prop.X_wt = X_wt;
 
         const double tol = 1e-7;
-        const int max_iter = 1500;
+        const int max_iter = 500;
         double T1, T2;
 
-        // 1. Initial Guess
+        // 1. INITIAL BRACKETING
         guess_T_PhX(p, H, X_wt, T1, T2);
+        expand_bounds_PhX(p, H, X_wt, T1, T2); // Custom helper to force bracketing
 
-        // 2. FORCE BRACKETING (Crucial for robustness)
-        expand_bounds_PhX(p, H, X_wt, T1, T2);
+        double T_low = T1;
+        double T_high = T2;
+        PROP_H2ONaCl PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
+        PROP_H2ONaCl PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
 
-        double T_a = T1;
-        double T_b = T2;
-        PROP_H2ONaCl PROP_a = prop_pTX(p, T_a + Kelvin, X_wt, false);
-        PROP_H2ONaCl PROP_b = prop_pTX(p, T_b + Kelvin, X_wt, false);
-
-        // 3. Final safety check: if we still don't bracket, the H is out of thermodynamic range
-        if ((H < PROP_a.H && H < PROP_b.H) || (H > PROP_a.H && H > PROP_b.H)) {
-            prop.Region = UnknownPhaseRegion;
-            return prop;
+        // Safety: if after expansion we still don't bracket H
+        if ((H < PROP_low.H && H < PROP_high.H) || (H > PROP_low.H && H > PROP_high.H)) {
+            // Fallback to pure water limits if X is tiny
+            if (X_wt < 1e-6) {
+                T_low = 0.01; T_high = 1000.0;
+                PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
+                PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
+            } else {
+                prop.Region = UnknownPhaseRegion;
+                return prop;
+            }
         }
 
-        auto res_H = [&H](double H_star) -> double {
-            return (H_star / H) - 1.0;
-        };
-
+        // 2. BISECTION LOOP
         PROP_H2ONaCl PROP_mid;
-        int iteri = 0;
-
-        for (iteri = 0; iteri < max_iter; ++iteri) {
-            double T_mid = (T_a + T_b) / 2.0;
-            
-            // Use our improved pTX which handles saturation branches internally
+        for (int iter = 0; iter < max_iter; ++iter) {
+            double T_mid = 0.5 * (T_low + T_high);
             PROP_mid = prop_pTX(p, T_mid + Kelvin, X_wt, false);
 
-            // Update bulk properties for 3-phase regions
-            if (PROP_mid.Region == ThreePhase_V_L_H) {
-                calc_sat_lvh(PROP_mid, H, X_wt, false);
-                
-                double rho_bulk = (PROP_mid.S_l * PROP_mid.Rho_l +
-                                   PROP_mid.S_v * PROP_mid.Rho_v +
-                                   PROP_mid.S_h * PROP_mid.Rho_h);
-                
-                if (rho_bulk > 0) {
-                    // MASS-FRACTION WEIGHTING
-                    double x_l = (PROP_mid.S_l * PROP_mid.Rho_l) / rho_bulk;
-                    double x_v = (PROP_mid.S_v * PROP_mid.Rho_v) / rho_bulk;
-                    double x_h = (PROP_mid.S_h * PROP_mid.Rho_h) / rho_bulk;
-                    PROP_mid.H = x_l * PROP_mid.H_l + x_v * PROP_mid.H_v + x_h * PROP_mid.H_h;
-                    PROP_mid.Rho = rho_bulk;
+            // Special handling for plateau regions (Pure water or VLH)
+            if (PROP_mid.Region == TwoPhase_L_V_X0 || PROP_mid.Region == ThreePhase_V_L_H) {
+                // In these regions, T is constant for a range of H.
+                // We use calc_sat_lvh or pure saturation logic to find the local H.
+                if (PROP_mid.Region == ThreePhase_V_L_H) {
+                    calc_sat_lvh(PROP_mid, H, X_wt, false);
+                } else {
+                    // Pure Water Saturation Logic
+                    double T_sat, rl, hl, hv, d1, d2, rv, m1, m2;
+                    fluidProp_crit_P(p, 1e-10, T_sat, rl, hl, hv, d1, d2, rv, m1, m2);
+                    double quality = (H - hl) / (hv - hl);
+                    quality = std::max(0.0, std::min(1.0, quality));
+                    double rho_pure = 1.0 / (quality/rv + (1.0 - quality)/rl);
+                    PROP_mid.H = H;
+                    PROP_mid.Rho = rho_pure;
+                    PROP_mid.T = T_sat;
                 }
             }
 
-            // Convergence Check
-            if (std::abs(res_H(PROP_mid.H)) < tol || std::abs(T_b - T_a) < 1e-8) {
+            // Convergence Check (Relative error in Enthalpy)
+            if (std::abs(PROP_mid.H - H) < tol * std::abs(H) || std::abs(T_high - T_low) < 1e-8) {
                 break;
             }
 
-            // Update Interval
-            if (res_H(PROP_mid.H) * res_H(PROP_a.H) < 0.0) {
-                T_b = T_mid;
-                PROP_b = PROP_mid;
+            // Update Brackets
+            if ((PROP_mid.H - H) * (PROP_low.H - H) < 0) {
+                T_high = T_mid;
+                PROP_high = PROP_mid;
             } else {
-                T_a = T_mid;
-                PROP_a = PROP_mid;
+                T_low = T_mid;
+                PROP_low = PROP_mid;
             }
         }
 
-        // 4. Post-Loop Property Finalization
+        // 3. FINALIZATION
         prop = PROP_mid;
-        prop.H = H; // Target enthalpy is the independent variable
+        prop.H = H; // Independent variable
 
-        // Final Viscosity Calculation using mass-fraction quality
+        // Final Viscosity calculation (now that T is known)
         calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
         
-        double x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
-        if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
-            // Cicchitti Model
-            prop.Mu = (1.0 - x_v) * prop.Mu_l + x_v * prop.Mu_v;
-        } else if (prop.Region == ThreePhase_V_L_H) {
-            // Multi-phase mass weighting
-            double x_l = (prop.S_l * prop.Rho_l) / prop.Rho;
-            double x_h = (prop.S_h * prop.Rho_h) / prop.Rho;
-            prop.Mu = x_l * prop.Mu_l + x_v * prop.Mu_v + x_h * (1.0e-3); // Dummy halite mu
+        // Final bulk Mu blending
+        if (prop.Rho > 1e-6) {
+            double x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
+            if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
+                 prop.Mu = (1.0 - x_v) * prop.Mu_l + x_v * prop.Mu_v;
+            }
         }
 
         return prop;

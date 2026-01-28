@@ -2768,61 +2768,45 @@ namespace H2ONaCl
 
     void cH2ONaCl::calcViscosity(int reg, double P, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v)
     {
-        // Constants for Driesner scaling
         const double a1 = -35.9858, a2 = 0.80017;
         const double b1 = 1e-6, b2 = -0.05239, b3 = 1.32936;
-        const double X_eps = 1e-12; // Numerical floor for salinity
+        const double X_eps = 1e-12;
 
-        mu_l = 0.0;
-        mu_v = 0.0;
+        mu_l = 0.0; mu_v = 0.0;
 
-        // 1. LIQUID PHASE VISCOSITY
+        // 1. LIQUID PHASE: Apply Scaling
         bool ind_l = (reg == SinglePhase_L || reg == TwoPhase_L_V_X0 || reg == TwoPhase_L_H ||
                       reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
         
         if (ind_l) {
             double X_eff = std::max(Xw_l, X_eps);
+            // Scaling only makes sense if there is salt; for pure water, T_star = T
             double term_X = pow(X_eff, a2);
-            double term_T = pow(std::max(T, 0.1), b2); // Avoid T=0 in power
+            double term_T = pow(std::max(T, 0.1), b2);
             
             double e1 = a1 * term_X;
             double e2 = 1.0 - b1 * term_T - b3 * term_X * term_T;
             double T_star_l = e1 + e2 * T;
 
-            // Validation and Clamping
-            if (std::isnan(T_star_l)) T_star_l = T;
-            T_star_l = std::max(0.01, std::min(T_star_l, 1000.0)); // Clamp to water library limits
+            T_star_l = std::max(0.01, std::min(T_star_l, 1000.0));
+            mu_l = water_mu_pT(P, T_star_l + Kelvin);
 
-            if (T_star_l > 0) {
-              mu_l = water_mu_pT(P, T_star_l + Kelvin);
-            }
-
-            // Fallback to critical solver if library returns NaN or non-physical value
+            // Fallback for critical/NaN
             if (std::isnan(mu_l) || mu_l <= 0) {
                 double T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, Mu_v0;
                 fluidProp_crit_P(P, 1e-10, T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l, Mu_v0);
             }
         }
 
-        // 2. VAPOR PHASE VISCOSITY
+        // 2. VAPOR PHASE: Treat as Pure Water Baseline
+        // Salt content in vapor is negligible for viscosity effects
         bool ind_v = (reg == SinglePhase_V || reg == TwoPhase_L_V_X0 || reg == TwoPhase_V_H ||
                       reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
 
         if (ind_v) {
-            double X_eff = std::max(Xw_v, X_eps);
-            double term_X = pow(X_eff, a2);
-            double term_T = pow(std::max(T, 0.1), b2);
-            
-            double e1 = a1 * term_X;
-            double e2 = 1.0 - b1 * term_T - b3 * term_X * term_T;
-            double T_star_v = e1 + e2 * T;
-
-            if (std::isnan(T_star_v)) T_star_v = T;
-            T_star_v = std::max(0.01, std::min(T_star_v, 1000.0));
-
-            if (T_star_v > 0) {
-                mu_v = water_mu_pT(P, T_star_v + Kelvin);
-            }
+            // Vapor viscosity in H2O-NaCl systems is dominated by the H2O steam properties.
+            // We use the actual T, not T_star, because X_v is effectively 0 for rheology.
+            mu_v = water_mu_pT(P, T + Kelvin);
 
             if (std::isnan(mu_v) || mu_v <= 0) {
                 double T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0;

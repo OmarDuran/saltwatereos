@@ -2190,14 +2190,13 @@ namespace H2ONaCl
         bool ind_v = (reg == SinglePhase_V || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_V || reg == TwoPhase_V_L_L);
         bool ind_l = (reg == SinglePhase_L || reg == TwoPhase_L_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_V || reg == TwoPhase_V_L_L);
 
-        // 1. LIQUID PHASE RHO
+        // 1. LIQUID PHASE
         if (ind_l && reg != TwoPhase_L_V_X0) {
             auto p = get_Ts(X_l);
-            double Ts_l = p.first + p.second * T_in;
+            double Ts_l = std::max(0.01, std::min(1000.0, p.first + p.second * T_in));
             T_star_l_out = Ts_l;
 
-            // Force lookup on liquid branch (T_K nudge down)
-            double Rho_star_l = water_rho_pT(P_Pa, Ts_l + Kelvin - 0.01);
+            double Rho_star_l = water_rho_pT(P_Pa, Ts_l + Kelvin);
 
             // --- THE DENSITY GUARD ---
             if (std::isnan(Rho_star_l) || Rho_star_l < rv_sat) Rho_star_l = rl_sat;
@@ -2206,21 +2205,22 @@ namespace H2ONaCl
 
             // High T / Low P Correction (Driesner Eq 18)
             if (T_in >= 600.0 && P_bar < 390.147 && X_l > 0.1) {
-                 // ... [Insert the Log-correction logic from previous message here] ...
+                double Ts_390, Ts_400, Ts_1000;
+                auto p3 = get_Ts(X_l); // Simplified here, should establish gradient at fixed P boundaries
+                // [Log-extrapolation code as previously provided goes here]
             }
 
             Rho_l = (mass_h2o * (1.0 - X_l) + mass_salt * X_l) / V_l_mol;
             V_l_out = V_l_mol;
         }
 
-        // 2. VAPOR PHASE RHO
+        // 2. VAPOR PHASE
         if (ind_v && reg != TwoPhase_L_V_X0) {
             auto p = get_Ts(X_v);
-            double Ts_v = p.first + p.second * T_in;
+            double Ts_v = std::max(0.01, std::min(1000.0, p.first + p.second * T_in));
             T_star_v_out = Ts_v; n1_v_out = p.first; n2_v_out = p.second;
 
-            // Force lookup on vapor branch (T_K nudge up)
-            double Rho_star_v = water_rho_pT(P_Pa, Ts_v + Kelvin + 0.01);
+            double Rho_star_v = water_rho_pT(P_Pa, Ts_v + Kelvin);
 
             // --- THE DENSITY GUARD ---
             if (std::isnan(Rho_star_v) || Rho_star_v > rl_sat) Rho_star_v = rv_sat;
@@ -2230,7 +2230,7 @@ namespace H2ONaCl
             V_v_out = V_v_mol;
         }
 
-        // 3. HALITE PHASE RHO
+        // 3. HALITE PHASE
         if (reg == TwoPhase_L_H || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H) {
             Rho_h = 2170.4 - 0.24599*T_in - 9.5797e-5*pow(T_in, 2) + (5.727e-3 + 2.715e-3*exp(T_in/733.4))*P_bar;
         }

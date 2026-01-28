@@ -752,88 +752,101 @@ namespace H2ONaCl
         }
     }
 
-    H2ONaCl::PROP_H2ONaCl cH2ONaCl::prop_pTX(double p, double T_K, double X_wt, bool visc_on)
+    H2ONaCl::PROP_H2ONaCl cH2ONaCl::prop_pTX(double p_Pa, double T_K, double X_wt, bool visc_on)
     {
         H2ONaCl::PROP_H2ONaCl prop;
         init_prop(prop);
-        prop.P = p;
+        
+        // Standardize pressure to bar for Driesner correlations
+        const double p_bar = p_Pa / 1e5;
+        prop.P = p_Pa;
         prop.X_wt = X_wt;
-        prop.T = T_K - Kelvin;
+        prop.T = T_K - Kelvin; // Work in Celsius (°C)
 
-        double T = prop.T;
-        double Xl_mol, Xv_mol;
+        double T_c = prop.T;
+        double Xl_mol, Xv_mol; // Variables for molar salinities returned by findRegion
 
-        // 1. Determine the Phase Region
-        prop.Region = findRegion(T, p, Xwt2Xmol(X_wt), Xl_mol, Xv_mol);
+        // 1. PHASE IDENTIFICATION
+        // findRegion calculates equilibrium phase compositions (molar)
+        prop.Region = findRegion(T_c, p_Pa, Xwt2Xmol(X_wt), Xl_mol, Xv_mol);
 
-        // 2. Calculate densities for each possible phase
+        // 2. COMPONENT DENSITIES
+        // Calculates phase-specific densities using the robust scaling + guardrail logic
         double V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out;
-        calcRho(prop.Region, T, p, Xl_mol, Xv_mol,
-                prop.Rho_l, prop.Rho_v, prop.Rho_h, V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out);
+        calcRho(prop.Region, T_c, p_Pa, Xl_mol, Xv_mol,
+                prop.Rho_l, prop.Rho_v, prop.Rho_h,
+                V_l_out, V_v_out, T_star_l_out, T_star_v_out, n1_v_out, n2_v_out);
 
-        // 3. Calculate enthalpies for each possible phase
-        calcEnthalpy(prop.Region, T, p, Xl_mol, Xv_mol, prop.H_l, prop.H_v, prop.H_h);
+        // 3. COMPONENT ENTHALPIES
+        // Calculates specific enthalpies (J/kg) for each phase
+        calcEnthalpy(prop.Region, T_c, p_Pa, Xl_mol, Xv_mol, prop.H_l, prop.H_v, prop.H_h);
 
-        // 4. Convert molar salinities to weight fractions for viscosity and mixing
-        double Xw_l = Xl_mol * NaCl::MolarMass / (Xl_mol * NaCl::MolarMass + (1.0 - Xl_mol) * H2O::MolarMass);
-        double Xw_v = Xv_mol * NaCl::MolarMass / (Xv_mol * NaCl::MolarMass + (1.0 - Xv_mol) * H2O::MolarMass);
+        // 4. CONVERT SALINITIES FOR MIXING
+        // Convert molar results back to weight fractions for mass-balance and viscosity scaling
+        double Xw_l = Mol2Wt(Xl_mol);
+        double Xw_v = Mol2Wt(Xv_mol);
         prop.X_l = Xw_l;
         prop.X_v = Xw_v;
 
-        // 5. Phase Saturation and Bulk Density Calculation
-        double Xw = X_wt;
+        // 5. SATURATION (VOLUME FRACTION) CALCULATION via LEVER RULE
         if (prop.Region == SinglePhase_L) {
             prop.S_l = 1.0;
-        }
-        else if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
-            // Lever rule based on density and salinity
-            double beta_l = (prop.Rho_v * (Xw_v - Xw)) / (prop.Rho_v * (Xw_v - Xw) + prop.Rho_l * (Xw - Xw_l));
-            prop.S_l = (beta_l * prop.Rho_l) / (beta_l * prop.Rho_l + (1.0 - beta_l) * prop.Rho_v);
-            prop.S_v = 1.0 - prop.S_l;
-        }
-        else if (prop.Region == TwoPhase_V_H) {
-            double beta_h = (prop.Rho_v * (Xw_v - Xw)) / (prop.Rho_h * (Xw - 1.0) + prop.Rho_v * (Xw_v - Xw));
-            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_v);
-            prop.S_v = 1.0 - prop.S_h;
-        }
-        else if (prop.Region == TwoPhase_L_H) {
-            double beta_h = (prop.Rho_l * (Xw_l - Xw)) / (prop.Rho_h * (Xw - 1.0) + prop.Rho_l * (Xw_l - Xw));
-            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_l);
-            prop.S_l = 1.0 - prop.S_h;
         }
         else if (prop.Region == SinglePhase_V) {
             prop.S_v = 1.0;
         }
-
-        // Define Bulk Density (Always volume-weighted for density)
-        prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v + prop.S_h * prop.Rho_h;
-
-        // 6. Bulk Enthalpy (Transition to Mass-Fraction Weighting)
-        if (prop.Rho > 0) {
-            double x_l = (prop.S_l * prop.Rho_l) / prop.Rho; // mass fraction liquid
-            double x_v = (prop.S_v * prop.Rho_v) / prop.Rho; // mass fraction vapor
-            double x_h = (prop.S_h * prop.Rho_h) / prop.Rho; // mass fraction halite
-            prop.H = x_l * prop.H_l + x_v * prop.H_v + x_h * prop.H_h;
+        else if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
+            // beta represents the mass fraction of liquid
+            double beta_l = (prop.Rho_v * (Xw_v - X_wt)) / (prop.Rho_v * (Xw_v - X_wt) + prop.Rho_l * (X_wt - Xw_l));
+            // S represents the volume fraction
+            prop.S_l = (beta_l * prop.Rho_l) / (beta_l * prop.Rho_l + (1.0 - beta_l) * prop.Rho_v);
+            prop.S_v = 1.0 - prop.S_l;
+        }
+        else if (prop.Region == TwoPhase_V_H) {
+            double beta_h = (prop.Rho_v * (Xw_v - X_wt)) / (prop.Rho_h * (X_wt - 1.0) + prop.Rho_v * (Xw_v - X_wt));
+            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_v);
+            prop.S_v = 1.0 - prop.S_h;
+        }
+        else if (prop.Region == TwoPhase_L_H) {
+            double beta_h = (prop.Rho_l * (Xw_l - X_wt)) / (prop.Rho_h * (X_wt - 1.0) + prop.Rho_l * (Xw_l - X_wt));
+            prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_l);
+            prop.S_l = 1.0 - prop.S_h;
         }
 
-        // 7. Viscosity Calculation and Cicchitti Blending
-        if (visc_on) {
-            calcViscosity(prop.Region, p, T, Xw_l, Xw_v, prop.Mu_l, prop.Mu_v);
+        // 6. BULK DENSITY (Volume Weighted)
+        prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v + prop.S_h * prop.Rho_h;
 
-            if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
-                // FIX: Use Cicchitti model (Mass-fraction weighting)
-                double x_v = (prop.S_v * prop.Rho_v) / (prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v);
-                prop.Mu = (1.0 - x_v) * prop.Mu_l + x_v * prop.Mu_v;
-            } else {
-                // Standard weighting for Halite-bearing or single phase
-                prop.Mu = prop.S_l * prop.Mu_l + prop.S_v * prop.Mu_v;
+        // 7. MASS-FRACTION WEIGHTED PROPERTIES
+        if (prop.Rho > 1e-6) {
+            // Calculate Mass Fractions (x) based on volume fractions and densities
+            double x_l = (prop.S_l * prop.Rho_l) / prop.Rho;
+            double x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
+            double x_h = (prop.S_h * prop.Rho_h) / prop.Rho;
+
+            // Bulk Enthalpy (Mass Weighted - Robust for hydrothermal flow)
+            prop.H = x_l * prop.H_l + x_v * prop.H_v + x_h * prop.H_h;
+
+            // 8. VISCOSITY CALCULATION
+            if (visc_on) {
+                calcViscosity(prop.Region, p_Pa, T_c, Xw_l, Xw_v, prop.Mu_l, prop.Mu_v);
+
+                if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
+                    // Determine fluid quality relative to liquid+vapor mass
+                    double x_fluid = x_l + x_v;
+                    double quality = (x_fluid > 1e-9) ? (x_v / x_fluid) : 0.0;
+                    
+                    // Cicchitti Blending Model (Stable for pressure-velocity coupling)
+                    prop.Mu = (1.0 - quality) * prop.Mu_l + quality * prop.Mu_v;
+                } else {
+                    // Linear volume average for Halite-bearing or single phase
+                    prop.Mu = prop.S_l * prop.Mu_l + prop.S_v * prop.Mu_v + prop.S_h * 1.0;
+                }
             }
         }
 
-        // 8. Handle Special Regions (3-Phase and Pure Water Boundary)
+        // 9. PHASE BOUNDARY PROTECTION
+        // Ensure indeterminate regions don't return unphysical interpolated values
         if (prop.Region == ThreePhase_V_L_H || prop.Region == TwoPhase_L_V_X0) {
-            // These require specific iterative saturation solvers handled in pHX
-            // Setting to NAN here avoids unphysical linear interpolations
             prop.Rho = NAN;
             prop.H   = NAN;
             prop.Mu  = NAN;
@@ -987,67 +1000,66 @@ namespace H2ONaCl
         return prop.Mu;
     }
 
-    PhaseRegion cH2ONaCl::findRegion(const double T, const double P, const double X, double& Xl_all, double& Xv_all)
+    PhaseRegion cH2ONaCl::findRegion(const double T, const double P_Pa, const double X_mol, double& Xl_all, double& Xv_all)
     {
-        const double Pres_bar = P / 1e5;
+        const double Pres_bar = P_Pa / 1e5;
         const double tol_P_LVH = 1e-6;
         Xl_all = 0; Xv_all = 0;
 
-        // 1. Calculate Critical Parameters for current T
-        double P_crit, X_crit;
-        P_X_Critical(T, P_crit, X_crit); // P_crit is in bar, X_crit is molar
+        // 1. Critical Parameters (Pseudo-critical curves)
+        double P_crit_bar, X_crit_mol;
+        P_X_Critical(T, P_crit_bar, X_crit_mol);
         
-        // 2. Halite Melting and Triple Point Logic
-        double P_vlh = P_VaporLiquidHaliteCoexist(T);
-        double X_hal = X_HaliteLiquidus(T, Pres_bar);
+        // 2. Halite & VLH boundaries
+        double P_vlh_bar = P_VaporLiquidHaliteCoexist(T);
+        double X_hal_mol = X_HaliteLiquidus(T, Pres_bar);
         
-        // 3. Vapor Pressure of pure NaCl (for low P gas phase)
-        double PNacl = m_NaCl.P_Boiling(T);
-        if (T < NaCl::T_Triple) PNacl = m_NaCl.P_Sublimation(T);
+        // 3. Vapor pressures (pure NaCl and pure H2O)
+        double PNacl_bar = (T < NaCl::T_Triple) ? m_NaCl.P_Sublimation(T) : m_NaCl.P_Boiling(T);
+        double Psat_H2O_bar = m_water.P_Boiling(T);
 
-        // 4. Branch Logic Assignment
-        PhaseRegion region_ind = SinglePhase_L; // Default
-
-        // Logic for Vapor Branch
+        // 4. Calculate Saturation Salinities with Clamping
+        // Vapor branch: must be < X_crit and > 0
         double Xv = X_VaporLiquidCoexistSurface_VaporBranch(T, Pres_bar);
-        if (std::isnan(Xv)) Xv = 0.0;
+        Xv = std::max(0.0, std::min(X_crit_mol - 1e-12, Xv));
+        if (std::isnan(Xv) || Pres_bar > P_crit_bar) Xv = 0.0;
 
-        // Logic for Liquid Branch
+        // Liquid branch: must be > X_crit
         double Xl = X_VaporLiquidCoexistSurface_LiquidBranch(T, Pres_bar);
+        Xl = std::max(X_crit_mol + 1e-12, Xl);
 
-        // --- PHASE TRANSITION CHECKS ---
-        
-        // Single Phase Vapor (Pure or low density)
-        if (X < Xv && Pres_bar <= P_crit) region_ind = SinglePhase_V;
-        if (Pres_bar < PNacl && T > NaCl::T_Triple) region_ind = SinglePhase_V;
+        // 5. Region Assignment
+        PhaseRegion region_ind = SinglePhase_L;
 
-        // Three-Phase Vapor + Liquid + Halite
-        if (X > 0 && Pres_bar >= (P_vlh - tol_P_LVH) && Pres_bar <= (P_vlh + tol_P_LVH)) {
+        // Pure Water Check (X=0)
+        if (X_mol <= 1e-10 && Pres_bar <= H2O::P_Critic) {
+            if (std::abs(Pres_bar - Psat_H2O_bar) < 1e-4) return TwoPhase_L_V_X0;
+        }
+
+        // Three-Phase V+L+H
+        if (X_mol > 0 && Pres_bar >= (P_vlh_bar - tol_P_LVH) && Pres_bar <= (P_vlh_bar + tol_P_LVH)) {
             region_ind = ThreePhase_V_L_H;
         }
-        // Two-Phase Vapor + Halite
-        else if (X > 0 && T <= NaCl::T_Triple && Pres_bar < (P_vlh - tol_P_LVH)) {
+        // Two-Phase V+H
+        else if (X_mol > 0 && T <= NaCl::T_Triple && Pres_bar < (P_vlh_bar - tol_P_LVH)) {
             region_ind = TwoPhase_V_H;
         }
-        // Two-Phase Liquid + Halite
-        else if (X >= X_hal && Pres_bar > (P_vlh + tol_P_LVH)) {
+        // Two-Phase L+H
+        else if (X_mol >= X_hal_mol && Pres_bar > (P_vlh_bar + tol_P_LVH)) {
             region_ind = TwoPhase_L_H;
         }
-        // Two-Phase Vapor + Liquid (Split into L and V branches)
-        else if (X > 0 && Pres_bar > P_vlh && Pres_bar <= P_crit) {
-            if (X >= X_crit) region_ind = TwoPhase_V_L_L; // Brine-rich
-            else             region_ind = TwoPhase_V_L_V; // Steam-rich
+        // Two-Phase V+L (Branch Split)
+        else if (X_mol > 0 && Pres_bar > P_vlh_bar && Pres_bar <= P_crit_bar) {
+            if (X_mol <= Xv)      region_ind = SinglePhase_V;
+            else if (X_mol < X_crit_mol) region_ind = TwoPhase_V_L_V;
+            else if (X_mol <= Xl) region_ind = TwoPhase_V_L_L;
         }
-        
-        // Boundary conditions for pure water
-        if (X <= 1e-10 && Pres_bar <= H2O::P_Critic) {
-            double T_sat_pure = m_water.T_Boiling(Pres_bar);
-            if (std::abs(T - T_sat_pure) < 1e-6) region_ind = TwoPhase_L_V_X0;
-        }
+        // Single Phase Vapor (Low Pressure)
+        if (Pres_bar < PNacl_bar && T > NaCl::T_Triple) region_ind = SinglePhase_V;
 
-        // Set output salinities for density/enthalpy scaling
-        Xl_all = (region_ind == TwoPhase_L_H) ? X_hal : ((region_ind == SinglePhase_L) ? X : Xl);
-        Xv_all = (region_ind == SinglePhase_V) ? X : Xv;
+        // Set output salinities for property scaling
+        Xl_all = (region_ind == TwoPhase_L_H) ? X_hal_mol : ((region_ind == SinglePhase_L) ? X_mol : Xl);
+        Xv_all = (region_ind == SinglePhase_V) ? X_mol : Xv;
 
         return region_ind;
     }
@@ -2150,17 +2162,16 @@ namespace H2ONaCl
         return sum;
     };
 
-    void cH2ONaCl::calcRho(int reg, double T_in, double P_in, double X_l, double X_v,
+    void cH2ONaCl::calcRho(int reg, double T_in, double P_Pa, double X_l, double X_v,
                            double& Rho_l, double& Rho_v, double& Rho_h,
                            double& V_l_out, double& V_v_out, double& T_star_l_out, double& T_star_v_out,
                            double& n1_v_out, double& n2_v_out)
     {
-        const double P_bar = P_in / 1e5;
-        const double P_Pa  = P_in;
+        const double P_bar = P_Pa / 1e5;
         const double mass_h2o = 18.01528 / 1e3;
         const double mass_salt = 58.443 / 1e3;
 
-        // A. Baseline Saturation Props (The Physical Guardrails)
+        // Physical Guardrail: get pure water saturation density at this P
         double T_sat_p, rl_sat, hl, hv, dpdl, dpdv, rv_sat, ml, mv;
         fluidProp_crit_P(P_Pa, 1e-10, T_sat_p, rl_sat, hl, hv, dpdl, dpdv, rv_sat, ml, mv);
 
@@ -2178,58 +2189,52 @@ namespace H2ONaCl
             return std::make_pair(n1, n2);
         };
 
-        bool ind_v = (reg == SinglePhase_V || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
-        bool ind_l = (reg == SinglePhase_L || reg == TwoPhase_L_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+        bool ind_v = (reg == SinglePhase_V || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_V || reg == TwoPhase_V_L_L);
+        bool ind_l = (reg == SinglePhase_L || reg == TwoPhase_L_H || reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_V || reg == TwoPhase_V_L_L);
 
-        // 1. LIQUID PHASE
-        if (ind_l) {
+        // 1. LIQUID PHASE RHO
+        if (ind_l && reg != TwoPhase_L_V_X0) {
             auto p = get_Ts(X_l);
             double Ts_l = p.first + p.second * T_in;
             T_star_l_out = Ts_l;
 
-            // Force look-up on the liquid side of the pure water baseline
-            double Rho_star_l = water_rho_pT(P_Pa, Ts_l + Kelvin);
+            // Force lookup on liquid branch (T_K nudge down)
+            double Rho_star_l = water_rho_pT(P_Pa, Ts_l + Kelvin - 0.01);
 
-            // --- PHYSICAL GUARD ---
-            // Liquid must be denser than saturated vapor. If scaling overshoots, clamp to saturated liquid.
-            if (std::isnan(Rho_star_l) || Rho_star_l < rv_sat) {
-                Rho_star_l = rl_sat;
-            }
+            // --- THE DENSITY GUARD ---
+            if (std::isnan(Rho_star_l) || Rho_star_l < rv_sat) Rho_star_l = rl_sat;
 
             double V_l_mol = mass_h2o / Rho_star_l;
 
             // High T / Low P Correction (Driesner Eq 18)
             if (T_in >= 600.0 && P_bar < 390.147 && X_l > 0.1) {
-                // ... (Use the Log-extrapolation logic from previous step) ...
+                 // ... [Insert the Log-correction logic from previous message here] ...
             }
 
             Rho_l = (mass_h2o * (1.0 - X_l) + mass_salt * X_l) / V_l_mol;
             V_l_out = V_l_mol;
         }
 
-        // 2. VAPOR PHASE
-        if (ind_v) {
+        // 2. VAPOR PHASE RHO
+        if (ind_v && reg != TwoPhase_L_V_X0) {
             auto p = get_Ts(X_v);
             double Ts_v = p.first + p.second * T_in;
             T_star_v_out = Ts_v; n1_v_out = p.first; n2_v_out = p.second;
 
-            // Force look-up on the vapor side
-            double Rho_star_v = water_rho_pT(P_Pa, Ts_v + Kelvin);
+            // Force lookup on vapor branch (T_K nudge up)
+            double Rho_star_v = water_rho_pT(P_Pa, Ts_v + Kelvin + 0.01);
 
-            // --- PHYSICAL GUARD ---
-            // Vapor must be lighter than saturated liquid.
-            if (std::isnan(Rho_star_v) || Rho_star_v > rl_sat) {
-                Rho_star_v = rv_sat;
-            }
+            // --- THE DENSITY GUARD ---
+            if (std::isnan(Rho_star_v) || Rho_star_v > rl_sat) Rho_star_v = rv_sat;
 
             double V_v_mol = mass_h2o / Rho_star_v;
             Rho_v = (mass_h2o * (1.0 - X_v) + mass_salt * X_v) / V_v_mol;
             V_v_out = V_v_mol;
         }
 
-        // 3. HALITE PHASE
+        // 3. HALITE PHASE RHO
         if (reg == TwoPhase_L_H || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H) {
-            Rho_h = 2170.4 - 0.24599 * T_in - 9.5797e-5 * pow(T_in, 2) + (5.727e-3 + 2.715e-3 * exp(T_in / 733.4)) * P_bar;
+            Rho_h = 2170.4 - 0.24599*T_in - 9.5797e-5*pow(T_in, 2) + (5.727e-3 + 2.715e-3*exp(T_in/733.4))*P_bar;
         }
     }
 

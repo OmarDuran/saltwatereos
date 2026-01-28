@@ -2912,31 +2912,46 @@ namespace H2ONaCl
     double cH2ONaCl::water_mu_pT(double p, double T_K)
     {
         #ifdef USE_PROST
-            double d, dp, ds, dh;
-            Prop *prop0;
-            dp = 1.0e-8;
-            ds = 1.0e-8;
-            dh = 1.0e-8;
-            prop0 = newProp('t', 'p', 1);
-            d = 0.0;
-            water_tp(T_K,p,d,dp,prop0);
-            double mu=viscos(prop0);
-            if(std::isnan(mu))
+            double d = 0.0, dp = 1.0e-8;
+            Prop *prop0 = newProp('t', 'p', 1);
+            
+            // 1. Initial attempt
+            water_tp(T_K, p, d, dp, prop0);
+            double mu = viscos(prop0);
+
+            // 2. If it fails (NaN) or returns 0, we are likely in the 2-phase dome
+            if (std::isnan(mu) || mu <= 0)
             {
-                Prop * propl = newProp('t', 'p', 1);
-                Prop * propv = newProp('t', 'p', 1);
+                Prop *propl = newProp('t', 'p', 1);
+                Prop *propv = newProp('t', 'p', 1);
+                
+                // Find the saturation boundaries for this pressure
                 sat_p(p, propl, propv);
-                double Tl = propl->T;
-                double Tv = propv->T;
-                if ((fabs((Tl-Tv)/2) < 1.0e-8) and (T_K > Tl)) {
-                    mu=viscos(propl);
+                double Tsat = propl->T;
+
+                // Robust check: are we on the vapor side or liquid side?
+                if (T_K > Tsat - 0.01) {
+                    // VAPOR SIDE:
+                    // Shift T_K slightly up to ensure we are outside the dome
+                    // and force the library to use the superheated steam correlations.
+                    double T_force = std::max(T_K, Tsat + 0.01);
+                    water_tp(T_force, p, d, dp, propv);
+                    mu = viscos(propv);
                 }
                 else {
-                    mu=viscos(propv);
+                    // LIQUID SIDE:
+                    // Force shift down
+                    double T_force = std::min(T_K, Tsat - 0.01);
+                    water_tp(T_force, p, d, dp, propl);
+                    mu = viscos(propl);
                 }
+                
+                // Clean up temporary props
+                freeProp(propl);
+                freeProp(propv);
             }
-            // very very important!!!!
-            prop0 = freeProp(prop0);
+
+            freeProp(prop0);
             return mu;
         #else
             SteamState S = freesteam_set_pT(p, T_K);

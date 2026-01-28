@@ -1000,69 +1000,67 @@ namespace H2ONaCl
         return prop.Mu;
     }
 
-    PhaseRegion cH2ONaCl::findRegion(const double T, const double P_Pa, const double X_mol, double& Xl_all, double& Xv_all)
-    {
-        const double Pres_bar = P_Pa / 1e5;
-        const double tol_P_LVH = 1e-6;
-        Xl_all = 0; Xv_all = 0;
+  PhaseRegion cH2ONaCl::findRegion(const double T, const double P_Pa, const double X_mol, double& Xl_all, double& Xv_all)
+  {
+      const double Pres_bar = P_Pa / 1e5;
+      const double tol_P_LVH = 1e-6;
+      Xl_all = 0; Xv_all = 0;
 
-        // 1. Critical Parameters (Pseudo-critical curves)
-        double P_crit_bar, X_crit_mol;
-        P_X_Critical(T, P_crit_bar, X_crit_mol);
-        
-        // 2. Halite & VLH boundaries
-        double P_vlh_bar = P_VaporLiquidHaliteCoexist(T);
-        double X_hal_mol = X_HaliteLiquidus(T, Pres_bar);
-        
-        // 3. Vapor pressures (pure NaCl and pure H2O)
-        double PNacl_bar = (T < NaCl::T_Triple) ? m_NaCl.P_Sublimation(T) : m_NaCl.P_Boiling(T);
-        double Psat_H2O_bar = m_water.P_Boiling(T);
+      // 1. Calculate Critical Parameters for current T
+      double P_crit_bar, X_crit_mol;
+      P_X_Critical(T, P_crit_bar, X_crit_mol);
+      
+      // 2. Halite & Triple Point logic
+      double P_vlh_bar = P_VaporLiquidHaliteCoexist(T);
+      double X_hal_mol = X_HaliteLiquidus(T, Pres_bar);
+      
+      // 3. Vapor Pressure of pure components
+      double PNacl_bar = (T < NaCl::T_Triple) ? m_NaCl.P_Sublimation(T) : m_NaCl.P_Boiling(T);
+      double Psat_H2O_bar = m_water.P_Boiling(T);
 
-        // 4. Calculate Saturation Salinities with Clamping
-        // Vapor branch: must be < X_crit and > 0
-        double Xv = X_VaporLiquidCoexistSurface_VaporBranch(T, Pres_bar);
-        Xv = std::max(0.0, std::min(X_crit_mol - 1e-12, Xv));
-        if (std::isnan(Xv) || Pres_bar > P_crit_bar) Xv = 0.0;
+      // 4. Equilibrium Salinities with Clamping logic
+      double Xv = X_VaporLiquidCoexistSurface_VaporBranch(T, Pres_bar);
+      Xv = std::max(0.0, std::min(X_crit_mol - 1e-12, Xv));
+      if (std::isnan(Xv) || Pres_bar > P_crit_bar) Xv = 0.0;
 
-        // Liquid branch: must be > X_crit
-        double Xl = X_VaporLiquidCoexistSurface_LiquidBranch(T, Pres_bar);
-        Xl = std::max(X_crit_mol + 1e-12, Xl);
+      double Xl = X_VaporLiquidCoexistSurface_LiquidBranch(T, Pres_bar);
+      Xl = std::max(X_crit_mol + 1e-12, Xl);
 
-        // 5. Region Assignment
-        PhaseRegion region_ind = SinglePhase_L;
+      // 5. Region Assignment
+      PhaseRegion region_ind = SinglePhase_L;
 
-        // Pure Water Check (X=0)
-        if (X_mol <= 1e-10 && Pres_bar <= H2O::P_Critic) {
-            if (std::abs(Pres_bar - Psat_H2O_bar) < 1e-4) return TwoPhase_L_V_X0;
-        }
+      // Pure Water Check
+      if (X_mol <= 1e-10 && Pres_bar <= H2O::P_Critic) {
+          if (std::abs(Pres_bar - Psat_H2O_bar) < 1e-4) return TwoPhase_L_V_X0;
+      }
 
-        // Three-Phase V+L+H
-        if (X_mol > 0 && Pres_bar >= (P_vlh_bar - tol_P_LVH) && Pres_bar <= (P_vlh_bar + tol_P_LVH)) {
-            region_ind = ThreePhase_V_L_H;
-        }
-        // Two-Phase V+H
-        else if (X_mol > 0 && T <= NaCl::T_Triple && Pres_bar < (P_vlh_bar - tol_P_LVH)) {
-            region_ind = TwoPhase_V_H;
-        }
-        // Two-Phase L+H
-        else if (X_mol >= X_hal_mol && Pres_bar > (P_vlh_bar + tol_P_LVH)) {
-            region_ind = TwoPhase_L_H;
-        }
-        // Two-Phase V+L (Branch Split)
-        else if (X_mol > 0 && Pres_bar > P_vlh_bar && Pres_bar <= P_crit_bar) {
-            if (X_mol <= Xv)      region_ind = SinglePhase_V;
-            else if (X_mol < X_crit_mol) region_ind = TwoPhase_V_L_V;
-            else if (X_mol <= Xl) region_ind = TwoPhase_V_L_L;
-        }
-        // Single Phase Vapor (Low Pressure)
-        if (Pres_bar < PNacl_bar && T > NaCl::T_Triple) region_ind = SinglePhase_V;
+      // Three-Phase V+L+H
+      if (X_mol > 0 && Pres_bar >= (P_vlh_bar - tol_P_LVH) && Pres_bar <= (P_vlh_bar + tol_P_LVH)) {
+          region_ind = ThreePhase_V_L_H;
+      }
+      // Two-Phase V+H
+      else if (X_mol > 0 && T <= NaCl::T_Triple && Pres_bar < (P_vlh_bar - tol_P_LVH)) {
+          region_ind = TwoPhase_V_H;
+      }
+      // Two-Phase L+H
+      else if (X_mol >= X_hal_mol && Pres_bar > (P_vlh_bar + tol_P_LVH)) {
+          region_ind = TwoPhase_L_H;
+      }
+      // Two-Phase V+L (Split into L and V branches)
+      else if (X_mol > 0 && Pres_bar > P_vlh_bar && Pres_bar <= P_crit_bar) {
+          if (X_mol <= Xv)           region_ind = SinglePhase_V;
+          else if (X_mol < X_crit_mol) region_ind = TwoPhase_V_L_V;
+          else if (X_mol <= Xl)      region_ind = TwoPhase_V_L_L;
+      }
+      
+      // Single Phase Vapor (Low Pressure)
+      if (Pres_bar < PNacl_bar && T > NaCl::T_Triple) region_ind = SinglePhase_V;
 
-        // Set output salinities for property scaling
-        Xl_all = (region_ind == TwoPhase_L_H) ? X_hal_mol : ((region_ind == SinglePhase_L) ? X_mol : Xl);
-        Xv_all = (region_ind == SinglePhase_V) ? X_mol : Xv;
+      Xl_all = (region_ind == TwoPhase_L_H) ? X_hal_mol : ((region_ind == SinglePhase_L) ? X_mol : Xl);
+      Xv_all = (region_ind == SinglePhase_V) ? X_mol : Xv;
 
-        return region_ind;
-    }
+      return region_ind;
+  }
     
     void cH2ONaCl:: fluidProp_crit_P(double P, double tol, double& T_2ph,
                     double& Rho_l, double& h_l, double& h_v, double& dpd_l,

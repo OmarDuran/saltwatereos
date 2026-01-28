@@ -501,76 +501,64 @@ namespace H2ONaCl
             double T_a = T1;
             double T_b = T2;
             double T_mid = T1;
-            for (iteri = 0; iteri < max_iter; ++iteri) {
+
+            // Initial calculation of endpoints
+            PROP_H2ONaCl PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
+            PROP_H2ONaCl PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
+
+            // Robustness: Ensure bracketing before bisection
+            if (res_H(PROP_a.H) * res_H(PROP_b.H) > 0.0) {
+                // If not bracketed, try to expand
                 
-                // claculate H(T)
-                PROP_H2ONaCl PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
-                PROP_H2ONaCl PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
-                
-                T_mid = (T_a +  T_b) / 2;
-                PROP_H2ONaCl PROP_mid=prop_pTX(p,T_mid+Kelvin,X_wt, false);
-                
-                if (res_H(PROP_a.H) * res_H(PROP_b.H) > 0.0) {
-                    
-                    // robustness on flat regions or near critical point
-                    // left interval expansion
-                    bool a_predicate = PROP_a.H > H;
+                // Left interval expansion: if both H are too high, decrease T_a
+                if (PROP_a.H > H) {
                     while(PROP_a.H >= H)
                     {
-                        T_a -= 0.0025;
-                        PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
+                        T_b = T_a;
+                        PROP_b = PROP_a; // Shift b to a to keep window tight if possible, or just expand a?
+                        // If we shift b to a, we lose the upper bound direction if we are wrong.
+                        // Better just expand T_a down.
+                        
+                        T_a -= 1.0; // Use larger step than 0.0025 for search efficiency
                         if(T_a < 0.0){
-                            T_a = 0.0;
-                            break;
+                           T_a = 0.0;
+                           PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
+                           break;
                         }
+                        PROP_a=prop_pTX(p,T_a+Kelvin,X_wt, false);
                     }
-                    
-                    // right interval expansion
-                    bool b_predicate = PROP_b.H < H;
-                    while(PROP_b.H < H)
-                    {
-                        T_b += 0.0025;
-                        PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
-                        if(T_b > 1000.0){
-                            T_b = 1000.0;
-                            break;
-                        }
-                    }
-                    if (a_predicate and b_predicate){
-                        T_mid = (T_a +  T_b) / 2;
-                    }
-                    if (a_predicate) {
-                        T_mid = T_a;
-                    } else {
-                        T_mid = T_b;
-                    }
-                    PROP_H2ONaCl PROP_mid=prop_pTX(p,T_mid+Kelvin,X_wt, false);
-                    prop.Region = PROP_mid.Region;
-                    prop.T = T_mid;
-                    prop.H = PROP_mid.H;
-                    prop.Rho = PROP_mid.Rho;
-                    prop.Rho_l = PROP_mid.Rho_l;
-                    prop.Rho_v = PROP_mid.Rho_v;
-                    prop.Rho_h = PROP_mid.Rho_h;
-                    prop.H_l = PROP_mid.H_l;
-                    prop.H_v = PROP_mid.H_v;
-                    prop.H_h = PROP_mid.H_h;
-                    prop.S_l = PROP_mid.S_l;
-                    prop.S_v = PROP_mid.S_v;
-                    prop.S_h = PROP_mid.S_h;
-                    prop.X_l = PROP_mid.X_l;
-                    prop.X_v = PROP_mid.X_v;
-                    break;
                 }
                 
+                // Right interval expansion: if both H are too low, increase T_b
+                if (PROP_b.H < H) {
+                    while(PROP_b.H < H)
+                    {
+                        // T_a = T_b; PROP_a = PROP_b; // Optional: move a to b
+                        T_b += 1.0; // Use larger step
+                        if(T_b > 1000.0){
+                            T_b = 1000.0;
+                            PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
+                            break;
+                        }
+                        PROP_b=prop_pTX(p,T_b+Kelvin,X_wt, false);
+                    }
+                }
+            }
 
+            // Bisection Loop
+            PROP_H2ONaCl PROP_mid;
+            for (iteri = 0; iteri < max_iter; ++iteri) {
+                
+                T_mid = (T_a +  T_b) / 2;
+                PROP_mid=prop_pTX(p,T_mid+Kelvin,X_wt, false);
+                
                 if (isnan(T_mid))
                 {
                     printf("T_mid is nan, T1: %f, T2: %f, H: %f, X:%f, h1: %f, h2: %f\n", T1, T2, H, X_wt, h1, h2);
                     exit(0);
                 }
-                // cout<<"new H: "<<PROP_new.H<<" region: "<<m_phaseRegion_name[PROP_new.Region]<<endl; exit(0);
-                // claculate new h in  L+V+H region
+
+                // claculate new h in  L+V+H region or 2-phase region where T is fixed (sat temp) but H varies
                 calc_sat_lvh(PROP_mid, H ,X_wt, false);
                 switch (PROP_mid.Region)
                 {
@@ -646,6 +634,8 @@ namespace H2ONaCl
                 default:
                     break;
                 }
+                
+                // ...existing code...
                 if(X_wt==1)
                 {
                     double X_hal_liq, T_hm;
@@ -693,8 +683,10 @@ namespace H2ONaCl
                 // Update the interval
                 if (res_H(PROP_mid.H) * res_H(PROP_a.H) < 0) {
                     T_b = T_mid;
+                    PROP_b = PROP_mid;
                 } else {
                     T_a = T_mid;
+                    PROP_a = PROP_mid;
                 }
                 
             }

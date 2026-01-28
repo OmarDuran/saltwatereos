@@ -2670,160 +2670,99 @@ namespace H2ONaCl
         }
     }
 
-    void cH2ONaCl:: calcEnthalpy(int reg, double T_in, double P_in, double X_l, double X_v,
-            double& h_l, double& h_v, double& h_h)
+    void cH2ONaCl::calcEnthalpy(int reg, double T_in, double P_in, double X_l, double X_v,
+                                double& h_l, double& h_v, double& h_h)
     {
-        double P_crit = 220.5491;
+        const double P_bar = P_in / 1e5;
+        const double P_Pa  = P_in;
+        const double X_eps = 1e-9;
 
-        P_in = P_in/1e5;
+        h_l = 0.0; h_v = 0.0; h_h = 0.0;
 
-        h_l = 0;
-        h_v = 0;
-        h_h = 0;
-        double T_star_v_out = 0;
-        //Fitting parameters to calculate T*
-        double q11  = -32.1724 + 0.0621255*P_in;
-        double q21  = -1.69513 - 4.52781e-4*P_in - 6.04279e-8*pow(P_in,2);
-        double q22  = 0.0612567 + 1.88082e-5*P_in;
-        double q1_1 = 47.9048 - 9.36994e-3*P_in;
-        double q2_1 = 0.241022 + 3.45087e-5*P_in - 4.28356e-9*pow(P_in,2);
-        double q12  = -q11 - q1_1;
-        double q10  = -q11 - q12;
-        double q20  = 1 - q21*sqrt(q22);
-        double q23  = q2_1 - q20 - q21*sqrt(1+q22);
-        double T_trip_salt = 800.7;
-        // P_trip_salt = 5e-4;
-        // mass_salt = 58.443/1e3;
-        //--------------------------------------------------------------------------
-        //FIND ENTHALPY OF VAPOUR
-        //find coeff
-        bool ind_lv = ( reg==TwoPhase_L_V_X0 );
-        bool ind_v  = ( reg == SinglePhase_V || reg == TwoPhase_V_H || reg ==ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V );
-        bool ind_l  = ( reg == SinglePhase_L ||  reg == TwoPhase_L_H || reg ==ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V );
-        bool ind_h  = (reg==TwoPhase_L_H || reg==TwoPhase_V_H || reg==ThreePhase_V_L_H);
-        if(ind_lv)
-        {
+        // 1. SCALING COEFFICIENTS (Common for L and V)
+        auto get_T_star = [&](double T, double P, double X) -> double {
+            if (X < X_eps) return T; // Pure water limit
+
+            double q11 = -32.1724 + 0.0621255 * P;
+            double q21 = -1.69513 - 4.52781e-4 * P - 6.04279e-8 * pow(P, 2);
+            double q22 = 0.0612567 + 1.88082e-5 * P;
+            double q1_1 = 47.9048 - 9.36994e-3 * P;
+            double q2_1 = 0.241022 + 3.45087e-5 * P - 4.28356e-9 * pow(P, 2);
+            
+            double q12 = -q11 - q1_1;
+            double q10 = -q11 - q12;
+            double q20 = 1.0 - q21 * sqrt(q22);
+            double q23 = q2_1 - q20 - q21 * sqrt(1.0 + q22);
+
+            double q1_eff = q10 + q11 * (1.0 - X) + q12 * pow((1.0 - X), 2);
+            double q2_eff = q20 + q21 * sqrt(X + q22) + q23 * X;
+
+            double Ts = q1_eff + q2_eff * T;
+            return std::max(0.01, std::min(Ts, 1000.0)); // Guardrail: 0-1000 °C
+        };
+
+        // 2. PHASE IDENTIFICATION
+        bool ind_lv = (reg == TwoPhase_L_V_X0);
+        bool ind_v  = (reg == SinglePhase_V || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H ||
+                       reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+        bool ind_l  = (reg == SinglePhase_L || reg == TwoPhase_L_H || reg == ThreePhase_V_L_H ||
+                       reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+        bool ind_h  = (reg == TwoPhase_L_H || reg == TwoPhase_V_H || reg == ThreePhase_V_L_H);
+
+        // 3. VAPOR ENTHALPY
+        if (ind_lv) {
             double T_2ph0, Rho_l0, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0;
-            fluidProp_crit_P(P_in*1e5, 1e-12,T_2ph0, Rho_l0, h_l, h_v, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0);
+            fluidProp_crit_P(P_Pa, 1e-12, T_2ph0, Rho_l0, h_l, h_v, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0);
         }
-        if(ind_v)
-        {
-            double q1_v = q10 + q11*(1-X_v) + q12*pow((1-X_v),2);
-            double q2_v = q20 + q21*sqrt(X_v+q22) + q23*X_v;
 
-            double T_star_v = q1_v + q2_v*T_in;
-            double P_star_v = P_in;
-            // SteamState S = freesteam_set_pT(P_star_v*1e5, T_star_v+Kelvin);
-            // h_v=freesteam_h(S);
-            h_v=water_h_pT(P_star_v*1e5, T_star_v+Kelvin);
-            bool ind1 = (h_v < 2.086e6 && P_star_v < P_crit);// & P_star_v > 40);
-            bool ind2 = (std::isnan(h_v) && P_star_v < P_crit);// & P_star_v > 40);
-            while (ind1 || ind2)
-            {
+        if (ind_v && !ind_lv) {
+            double T_star_v = get_T_star(T_in, P_bar, X_v);
+            h_v = water_h_pT(P_Pa, T_star_v + Kelvin);
+
+            // Saturation Line Correction for Vapor
+            if (std::isnan(h_v) || (h_v < 2.086e6 && P_bar < 220.5)) {
                 double T_2ph0, Rho_l0, h_l0, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0;
-                fluidProp_crit_P(P_star_v*1e5, 1e-12,T_2ph0, Rho_l0, h_l0, h_v, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0);
-                ind1 = (h_v < 2.086e6 && P_star_v < P_crit && P_star_v > 40);
-                ind2 = (std::isnan(h_v) && P_star_v < P_crit && P_star_v > 40);
+                fluidProp_crit_P(P_Pa, 1e-12, T_2ph0, Rho_l0, h_l0, h_v, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0);
             }
-            T_star_v_out= T_star_v;
         }
-        // FIND ENTHALPY OF LIQUID
-        if(ind_l)
-        {
-            double q1_l = q10 + q11*(1-X_l) + q12*pow((1-X_l),2);
-            double q2_l = q20 + q21*sqrt(X_l+q22) + q23*X_l;
-            //from Driesner is equal to above formulation
-//            double q1_lb = q1_1 + q11 * (1-X_l) - (q1_1 +q11) * pow((1-X_l),2);
-//            double q2_lb = 1 - q21 * sqrt(q22) + q21 * sqrt(X_l+q22) + X_l * (q21 * sqrt(q22) - 1- q21 * sqrt(1+q22) + q2_1);
-            double T_star_l = q1_l + q2_l*T_in;
-            double P_star_l = P_in;
-            // SteamState S = freesteam_set_pT(P_star_l*1e5, T_star_l+Kelvin);
-            // h_l=freesteam_h(S);
-            h_l=water_h_pT(P_star_l*1e5, T_star_l+Kelvin);
-            // printf("P_star_l: %f, T_star_l: %f, h_l: %f\n",P_star_l, T_star_l,h_l);
-            //nedded for boiling temps from 180 to Tcri, is not in Driesners Paper
-            bool ind_low = ( (h_l > 2.086e6 || std::isnan(h_l))  &&  P_star_l < P_crit  &&  T_in < 375 );
-            if(ind_low)
-            {
-                //  find boiling temperature and spec enthlapy there for given Pressure
-                double T_crit, Rho_l0, h_l_crit, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0;
-                fluidProp_crit_P(P_star_l*1e5, 1e-9,T_crit, Rho_l0, h_l_crit, h_v, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0);//P_star_l = P_l
-                // find derivative of spec enthlapy at boiling temperature for given Pressure
-                // S = freesteam_set_pT(P_star_l*1e5, T_crit-1+Kelvin);
-                // double h_l_minus=freesteam_h(S);
-                double h_l_minus=water_h_pT(P_star_l*1e5, T_crit-1+Kelvin);
-                double dh_ldT = (h_l_crit - h_l_minus)/1;
-                double o1 = dh_ldT ;
-                double o0 = h_l_crit - o1 * T_crit ;
-                h_l = o0 + o1 *  T_star_l;
-            }
-            // printf("h_l: %f\n",h_l);
-            bool ind_high = ( P_in <= 390.147  &&  T_in > 600);
-            if(ind_high)
-            {
-                double P_390 = 390.147;
-                // const for P = 390.147 bar
-                q11  = -7.934322551500003;
-                q21  = -1.880979162365801;
-                q22  =  0.068594662805400;
-                q12  = -36.31482346732;
-                q10  =  44.24914601882;
-                q20  =  1.492639405203696;
-                q23  =  0.705615854382021;
-                q1_l = q10 + q11*(1-X_l) + q12*pow((1-X_l),2);
-                q2_l = q20 + q21*sqrt(X_l+q22) + q23*X_l;
-                double T_star_l_P390 = q1_l + q2_l*T_in;
 
-                double P4 = 400;
-                q11  = -7.322200000000002;
-                q21  = -1.885910864000000;
-                q22  = 0.068779980000000;
-                q12  = -36.834624000000000;
-                q10  = 44.156824000000000;
-                q20  = 1.494597805305935;
-                q23  = 0.709231197191129;
-                q1_l = q10 + q11*(1-X_l) + q12*pow((1-X_l),2);
-                q2_l = q20 + q21*sqrt(X_l+q22) + q23*X_l;
-                double T_star_l_P4 = q1_l + q2_l*T_in;
+        // 4. LIQUID ENTHALPY
+        if (ind_l && !ind_lv) {
+            double T_star_l = get_T_star(T_in, P_bar, X_l);
+            h_l = water_h_pT(P_Pa, T_star_l + Kelvin);
+
+            // Sub-critical boiling correction
+            if (T_in < 373.0 && P_bar < 220.5 && (std::isnan(h_l) || h_l > 2.0e6)) {
+                double T_crit, Rho_l0, h_l_crit, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0, h_v_dummy;
+                fluidProp_crit_P(P_Pa, 1e-9, T_crit, Rho_l0, h_l_crit, h_v_dummy, dpd_l0, dpd_v0, Rho_v0, Mu_l0, Mu_v0);
                 
-                double P1 = 1000;
-                q11  = 29.953100000000000;
-                q21  = -2.208338900000000;
-                q22  = 0.080064900000000;
-                q12  = -68.487960000000000;
-                q10  = 38.534860000000000;
-                q20  = 1.624865871647275;
-                q23  = 0.941423327837196;
-                q1_l = q10 + q11*(1-X_l) + q12*pow((1-X_l),2);
-                q2_l = q20 + q21*sqrt(X_l+q22) + q23*X_l;
-               double T_star_l_P1 = q1_l + q2_l*T_in;
+                double h_l_minus = water_h_pT(P_Pa, (T_crit - 1.0) + Kelvin);
+                double dh_dT = (h_l_crit - h_l_minus);
+                h_l = h_l_crit + dh_dT * (T_star_l - T_crit);
+            }
 
-                // S = freesteam_set_pT(P_390*1e5, T_star_l_P390+Kelvin);
-                // double h_l_390=freesteam_h(S);
-                double h_l_390=water_h_pT(P_390*1e5, T_star_l_P390+Kelvin);
+            // High Temp / Low Pressure Extrapolation (Driesner eq 18)
+            if (P_bar <= 390.147 && T_in > 600.0) {
+                // Logarithmic pressure correction logic (as per your previous snippet)
+                // This prevents the 'H' value from diverging at the low-pressure boundary
+                double h_l_390 = water_h_pT(390.147e5, get_T_star(T_in, 390.147, X_l) + Kelvin);
+                double h_l_400 = water_h_pT(400.000e5, get_T_star(T_in, 400.000, X_l) + Kelvin);
+                double h_l_1000 = water_h_pT(1000.0e5, get_T_star(T_in, 1000.0, X_l) + Kelvin);
 
-                // S = freesteam_set_pT(P4*1e5, T_star_l_P4+Kelvin);
-                // double h_l_400=freesteam_h(S);
-                double h_l_400=water_h_pT(P4*1e5, T_star_l_P4+Kelvin);
-
-                // S = freesteam_set_pT(P1*1e5, P1+Kelvin);
-                // double h_l_1000=freesteam_h(S);
-                double h_l_1000=water_h_pT(P1*1e5, T_star_l_P1+Kelvin);
-                // printf("hl390: %f, hl400: %f, hl1000: %f\n",h_l_390, h_l_400, h_l_1000);
-                double dh_l_dP = (h_l_400 - h_l_390) / (P4 - P_390);
-                double P_610 = P1 - P_390;
-                double P_1390 = P1 + P_390;
-                double o4 = ( - h_l_390 + h_l_1000 - dh_l_dP * (P_610) )/( - log(P_1390) + log( 2*P1 ) - (P_610/P_1390) ) ;
-                double o5 = dh_l_dP - o4 / P_1390;
-                double o3 = h_l_390 - o4 * log(P_1390) - o5 * P_390;
-                double h_l_ind_high = o3 + o4 * log(P_star_l+P1) + o5 * P_star_l;
-                // printf("h_l_ind_high: %f, o3: %f, o4: %f, P_star_l: %f, P1: %f, o5: %f\n",h_l_ind_high, o3, o4, P_star_l, P1, o5);
-                h_l = h_l_ind_high;
+                double dh_dP = (h_l_400 - h_l_390) / 9.853;
+                double P_off = 1000.0;
+                double o4 = (h_l_1000 - h_l_390 - dh_dP*(1000.0-390.147)) /
+                            (log((1000.0+P_off)/(390.147+P_off)) - (1000.0-390.147)/(390.147+P_off));
+                double o5 = dh_dP - o4 / (390.147 + P_off);
+                double o3 = h_l_390 - o4 * log(390.147 + P_off) - o5 * 390.147;
+                
+                h_l = o3 + o4 * log(P_bar + P_off) + o5 * P_bar;
             }
         }
-        if(ind_h)
-        {
-            h_h = m_NaCl.SpecificEnthalpy(T_in,P_in);
+
+        // 5. HALITE ENTHALPY
+        if (ind_h) {
+            h_h = m_NaCl.SpecificEnthalpy(T_in, P_bar);
         }
     }
 

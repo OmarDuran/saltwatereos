@@ -485,38 +485,17 @@ int main()
          << " (" << setprecision(2) << max_h_error*100 << "%)\n";
     cout << "  Maximum viscosity error: " << setprecision(3) << max_mu_error
          << " (" << setprecision(2) << max_mu_error*100 << "%)\n";
-    if(visc_jumps_detected > 0) {
-        cout << "  Vapor viscosity discontinuities: " << visc_jumps_detected
-             << " (max jump: " << fixed << setprecision(1) << max_mu_v_jump << "%)\n";
-    }
-    cout << "====================================================\n\n";
     
-    int pHX_liquid_supercrit = pHX_tests - pHX_failed;  // Tests that passed (liquid and supercritical)
+    cout << "\n====================================================\n";
     
-    if(failed_tests > 0) {
-        cout << "FAILED: Physical limit test did not pass!\n";
-        cout << "Trace salinity does not reproduce pure water properties in tested regions.\n";
-        return 1;
-    } else if(total_tests == 0) {
-        cout << "INCONCLUSIVE: No tests with matching regions were executed.\n";
-        cout << "All test conditions were near phase boundaries.\n";
+    // Return status
+    int total_failed = failed_tests + pHX_failed;
+    if(total_failed > 0 || boundary_issues > 0) {
+        cout << "TEST FAILED: " << total_failed << " test(s) failed, "
+             << boundary_issues << " boundary issue(s) detected\n";
         return 1;
     } else {
-        cout << "SUCCESS: Physical limit satisfied!\n";
-        cout << "Trace salinity (X=1e-5) correctly reproduces pure water properties\n";
-        cout << "for " << total_tests << " tested condition(s) where regions match.\n";
-        if(pHX_liquid_supercrit >= 2) {
-            cout << "prop_pHX_bisection also passes for liquid and supercritical regions.\n";
-        }
-        if(pHX_failed > 0) {
-            cout << "\nNote: " << pHX_failed << " prop_pHX_bisection test(s) failed, likely due to\n";
-            cout << "      region identification differences near phase boundaries.\n";
-        }
-        if(visc_jumps_detected > 0) {
-            cout << "\n⚠ WARNING: " << visc_jumps_detected << " vapor viscosity discontinuities detected.\n";
-            cout << "   Maximum jump: " << fixed << setprecision(1) << max_mu_v_jump << "%\n";
-            cout << "   This indicates Mu_v has jumps at phase boundaries that should be fixed.\n";
-        }
+        cout << "ALL TESTS PASSED\n";
         return 0;
     }
 }

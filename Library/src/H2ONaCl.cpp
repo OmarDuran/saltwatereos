@@ -513,6 +513,33 @@ namespace H2ONaCl
                 // We use calc_sat_lvh or pure saturation logic to find the local H.
                 if (PROP_mid.Region == ThreePhase_V_L_H) {
                     calc_sat_lvh(PROP_mid, H, X_wt, false);
+                    // Calculate mixture enthalpy from phase properties
+                    PROP_mid.H = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l +
+                                  PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v +
+                                  PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                    
+                    // Handle negative saturations - recalculate based on salinity balance
+                    if(PROP_mid.S_l < 0) // calc S_h and S_v
+                    {
+                        PROP_mid.S_h = (PROP_mid.Rho_v * (PROP_mid.X_v - X_wt))/(PROP_mid.Rho_h * (X_wt-1) + PROP_mid.Rho_v * (PROP_mid.X_v - X_wt));
+                        PROP_mid.S_v = 1 - PROP_mid.S_h;
+                        PROP_mid.Rho = PROP_mid.S_v * PROP_mid.Rho_v + PROP_mid.S_h * PROP_mid.Rho_h;
+                        PROP_mid.H   = (PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                    }
+                    if(PROP_mid.S_v < 0) // calc S_h and S_l
+                    {
+                        PROP_mid.S_h = (PROP_mid.Rho_l*(PROP_mid.X_l-X_wt))/(PROP_mid.Rho_h*(X_wt-1) + PROP_mid.Rho_l*(PROP_mid.X_l-X_wt));
+                        PROP_mid.S_l = 1 - PROP_mid.S_h;
+                        PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_h * PROP_mid.Rho_h;
+                        PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                    }
+                    if(PROP_mid.S_h < 0) // calc S_l and S_v
+                    {
+                        PROP_mid.S_l = (PROP_mid.Rho_v*(PROP_mid.X_v - X_wt))/(PROP_mid.Rho_v*(PROP_mid.X_v-X_wt)+ PROP_mid.Rho_l*(X_wt-PROP_mid.X_l));
+                        PROP_mid.S_v = 1 - PROP_mid.S_l;
+                        PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_v * PROP_mid.Rho_v;
+                        PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v) / PROP_mid.Rho;
+                    }
                 } else {
                     // Pure Water Saturation Logic
                     double T_sat, rl, hl, hv, d1, d2, rv, m1, m2;
@@ -523,6 +550,25 @@ namespace H2ONaCl
                     PROP_mid.H = H;
                     PROP_mid.Rho = rho_pure;
                     PROP_mid.T = T_sat;
+                }
+            }
+            
+            // Special handling for pure halite (X_wt==1) near melting temperature
+            if(X_wt == 1)
+            {
+                double X_hal_liq, T_hm;
+                calc_halit_liqidus(p, T_mid, X_hal_liq, T_hm);
+                if(T_mid <= T_hm && T_mid > (T_hm - 1e-4))
+                {
+                    double Nenner = (H * (PROP_mid.Rho_l - PROP_mid.Rho_h) - (PROP_mid.H_l * PROP_mid.Rho_l - PROP_mid.H_h * PROP_mid.Rho_h));
+                    double S_l_hm = PROP_mid.Rho_h * (PROP_mid.H_h - H) / Nenner;
+                    double S_h_hm = 1 - S_l_hm;
+                    double Rho_hm = S_l_hm * PROP_mid.Rho_l + (1 - S_l_hm) * PROP_mid.Rho_h;
+                    double h_hm = (S_l_hm * PROP_mid.Rho_l * PROP_mid.H_l + S_h_hm * PROP_mid.Rho_h * PROP_mid.H_h) / Rho_hm;
+                    PROP_mid.S_l = S_l_hm;
+                    PROP_mid.S_h = S_h_hm;
+                    PROP_mid.Rho = Rho_hm;
+                    PROP_mid.H = h_hm;
                 }
             }
 

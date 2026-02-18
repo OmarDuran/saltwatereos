@@ -763,7 +763,7 @@ namespace SWEOSbash
           {
             try
             {
-              props[k+j*lenX+i*lenHX]=eos.prop_pHX(arrP[i]*1e5, arrH[j]*1000.0, arrX[k]);
+              props[k+j*lenX+i*lenHX]=eos.prop_pHX_bisection(arrP[i]*1e5, arrH[j]*1000.0, arrX[k]);
             }
             catch(const std::exception& e)
             {
@@ -1483,7 +1483,7 @@ namespace SWEOSbash
     {
       for(int i=0;i<P.size();i++)
       {
-        eos.m_prop=eos.prop_pHX(P[i]*1e5, T_H[i]*1000, X[i]);
+        eos.m_prop=eos.prop_pHX_bisection(P[i]*1e5, T_H[i]*1000, X[i]);
         props.push_back(eos.m_prop);
         multibar.Update();
       }

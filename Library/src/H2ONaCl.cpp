@@ -507,8 +507,8 @@ namespace H2ONaCl
             double T_mid = 0.5 * (T_low + T_high);
             PROP_mid = prop_pTX(p, T_mid + Kelvin, X_wt, false);
 
-            // Special handling for plateau regions (Pure water or VLH)
-            // Only apply this for actual two-phase regions, not single phase
+            // Special handling ONLY for ThreePhase_V_L_H plateau region
+            // For this region, T is constant for a range of H
             if (PROP_mid.Region == ThreePhase_V_L_H) {
                 calc_sat_lvh(PROP_mid, H, X_wt, false);
                 // Calculate mixture enthalpy from phase properties
@@ -537,44 +537,6 @@ namespace H2ONaCl
                     PROP_mid.S_v = 1 - PROP_mid.S_l;
                     PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_v * PROP_mid.Rho_v;
                     PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v) / PROP_mid.Rho;
-                }
-            } else if (PROP_mid.Region == TwoPhase_L_V_X0) {
-                // Pure Water Saturation Logic (TwoPhase_L_V_X0)
-                // This is a switch statement case from original prop_pHX
-                double T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0;
-                fluidProp_crit_P(p, 1e-12, T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
-                double S_l = (Rho_v*(h_v - H))/(Rho_v*(h_v-H) + Rho_l*(H-h_l));
-                double S_v = 1 - S_l;
-                double Rho = S_l * Rho_l + S_v * Rho_v;
-                
-                PROP_mid.T = T_crit;
-                PROP_mid.H = H;
-                PROP_mid.Rho = Rho;
-                PROP_mid.Rho_l = Rho_l;
-                PROP_mid.Rho_v = Rho_v;
-                PROP_mid.H_l = h_l;
-                PROP_mid.H_v = h_v;
-                PROP_mid.S_l = S_l;
-                PROP_mid.S_v = S_v;
-                
-                // Handle out-of-range quality - transition to single phase
-                if(S_l > 1)
-                {
-                    PROP_mid.H = h_l;
-                    PROP_mid.S_l = 1;
-                    PROP_mid.S_v = 0;
-                    PROP_mid.Region = SinglePhase_L;
-                    PROP_mid.H_v = 0;
-                    PROP_mid.Rho_v = 0;
-                }
-                if(S_l < 0)
-                {
-                    PROP_mid.H = h_v;
-                    PROP_mid.S_l = 0;
-                    PROP_mid.S_v = 1;
-                    PROP_mid.Region = SinglePhase_V;
-                    PROP_mid.H_l = 0;
-                    PROP_mid.Rho_l = 0;
                 }
             }
             
@@ -615,6 +577,86 @@ namespace H2ONaCl
         // 3. FINALIZATION
         prop = PROP_mid;
         prop.H = H; // Independent variable
+        
+        // Recalculate properties for special regions to ensure H-Rho consistency
+        if (prop.Region == ThreePhase_V_L_H) {
+            // Recalculate saturations and density for the target enthalpy H
+            calc_sat_lvh(prop, H, X_wt, false);
+            prop.H = (prop.S_l * prop.Rho_l * prop.H_l +
+                      prop.S_v * prop.Rho_v * prop.H_v +
+                      prop.S_h * prop.Rho_h * prop.H_h) / prop.Rho;
+            
+            // Handle negative saturations
+            if(prop.S_l < 0) {
+                prop.S_h = (prop.Rho_v * (prop.X_v - X_wt))/(prop.Rho_h * (X_wt-1) + prop.Rho_v * (prop.X_v - X_wt));
+                prop.S_v = 1 - prop.S_h;
+                prop.Rho = prop.S_v * prop.Rho_v + prop.S_h * prop.Rho_h;
+                prop.H   = (prop.S_v * prop.Rho_v * prop.H_v + prop.S_h * prop.Rho_h * prop.H_h) / prop.Rho;
+            }
+            if(prop.S_v < 0) {
+                prop.S_h = (prop.Rho_l*(prop.X_l-X_wt))/(prop.Rho_h*(X_wt-1) + prop.Rho_l*(prop.X_l-X_wt));
+                prop.S_l = 1 - prop.S_h;
+                prop.Rho = prop.S_l * prop.Rho_l + prop.S_h * prop.Rho_h;
+                prop.H   = (prop.S_l * prop.Rho_l * prop.H_l + prop.S_h * prop.Rho_h * prop.H_h) / prop.Rho;
+            }
+            if(prop.S_h < 0) {
+                prop.S_l = (prop.Rho_v*(prop.X_v - X_wt))/(prop.Rho_v*(prop.X_v-X_wt)+ prop.Rho_l*(X_wt-prop.X_l));
+                prop.S_v = 1 - prop.S_l;
+                prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v;
+                prop.H   = (prop.S_l * prop.Rho_l * prop.H_l + prop.S_v * prop.Rho_v * prop.H_v) / prop.Rho;
+            }
+        } else if (prop.Region == TwoPhase_L_V_X0) {
+            // Recalculate for pure water saturation
+            double T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0;
+            fluidProp_crit_P(p, 1e-12, T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
+            double S_l = (Rho_v*(h_v - H))/(Rho_v*(h_v-H) + Rho_l*(H-h_l));
+            double S_v = 1 - S_l;
+            double Rho = S_l * Rho_l + S_v * Rho_v;
+            
+            prop.T = T_crit;
+            prop.H = H;
+            prop.Rho = Rho;
+            prop.Rho_l = Rho_l;
+            prop.Rho_v = Rho_v;
+            prop.H_l = h_l;
+            prop.H_v = h_v;
+            prop.S_l = S_l;
+            prop.S_v = S_v;
+            
+            if(S_l > 1) {
+                prop.H = h_l;
+                prop.S_l = 1;
+                prop.S_v = 0;
+                prop.Region = SinglePhase_L;
+                prop.H_v = 0;
+                prop.Rho_v = 0;
+            }
+            if(S_l < 0) {
+                prop.H = h_v;
+                prop.S_l = 0;
+                prop.S_v = 1;
+                prop.Region = SinglePhase_V;
+                prop.H_l = 0;
+                prop.Rho_l = 0;
+            }
+        }
+        
+        // Final X_wt==1 handling for halite melting
+        if(X_wt == 1) {
+            double X_hal_liq, T_hm;
+            calc_halit_liqidus(p, prop.T, X_hal_liq, T_hm);
+            if(prop.T <= T_hm && prop.T > (T_hm - 1e-4)) {
+                double Nenner = (H * (prop.Rho_l - prop.Rho_h) - (prop.H_l * prop.Rho_l - prop.H_h * prop.Rho_h));
+                double S_l_hm = prop.Rho_h * (prop.H_h - H) / Nenner;
+                double S_h_hm = 1 - S_l_hm;
+                double Rho_hm = S_l_hm * prop.Rho_l + (1 - S_l_hm) * prop.Rho_h;
+                double h_hm = (S_l_hm * prop.Rho_l * prop.H_l + S_h_hm * prop.Rho_h * prop.H_h) / Rho_hm;
+                prop.S_l = S_l_hm;
+                prop.S_h = S_h_hm;
+                prop.Rho = Rho_hm;
+                prop.H = h_hm;
+            }
+        }
 
         // Final Viscosity calculation (now that T is known)
         calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
@@ -1071,7 +1113,8 @@ namespace H2ONaCl
       // 4. Equilibrium Salinities with Clamping logic
       double Xv = X_VaporLiquidCoexistSurface_VaporBranch(T, Pres_bar);
       Xv = std::max(0.0, std::min(X_crit_mol - 1e-12, Xv));
-      if (std::isnan(Xv) || Pres_bar > P_crit_bar) Xv = 0.0;
+      // Use mixture critical pressure, not pure water critical pressure
+      if (std::isnan(Xv) || Pres_bar > (P_crit_bar + 0.1)) Xv = 0.0;
 
       double Xl = X_VaporLiquidCoexistSurface_LiquidBranch(T, Pres_bar);
       Xl = std::max(X_crit_mol + 1e-12, Xl);
@@ -2220,8 +2263,12 @@ namespace H2ONaCl
         const double mass_salt = 58.443 / 1e3;
 
         // Physical Guardrail: get pure water saturation density at this P
+        // Note: Above pure water critical pressure, rv_sat and rl_sat may be zero/invalid
         double T_sat_p, rl_sat, hl, hv, dpdl, dpdv, rv_sat, ml, mv;
         fluidProp_crit_P(P_Pa, 1e-10, T_sat_p, rl_sat, hl, hv, dpdl, dpdv, rv_sat, ml, mv);
+        
+        // Check if saturation densities are valid (only valid below critical pressure)
+        bool has_valid_sat = (rl_sat > 1.0 && rv_sat > 0.001 && rl_sat > rv_sat);
 
         auto get_Ts = [&](double X) {
             double n11 = -54.2958 - 45.7623 * exp(-9.44785e-4 * P_bar);
@@ -2249,7 +2296,14 @@ namespace H2ONaCl
             double Rho_star_l = water_rho_pT(P_Pa, Ts_l + Kelvin);
 
             // --- THE DENSITY GUARD ---
-            if (std::isnan(Rho_star_l) || Rho_star_l < rv_sat) Rho_star_l = rl_sat;
+            // Only apply guard if we have valid saturation densities (below critical P)
+            if (has_valid_sat && (std::isnan(Rho_star_l) || Rho_star_l < rv_sat)) {
+                Rho_star_l = rl_sat;
+            }
+            // Above critical P, just check for NaN and use a reasonable fallback
+            else if (!has_valid_sat && std::isnan(Rho_star_l)) {
+                Rho_star_l = 500.0; // Typical supercritical liquid-like density
+            }
 
             double V_l_mol = mass_h2o / Rho_star_l;
 
@@ -2273,7 +2327,14 @@ namespace H2ONaCl
             double Rho_star_v = water_rho_pT(P_Pa, Ts_v + Kelvin);
 
             // --- THE DENSITY GUARD ---
-            if (std::isnan(Rho_star_v) || Rho_star_v > rl_sat) Rho_star_v = rv_sat;
+            // Only apply guard if we have valid saturation densities (below critical P)
+            if (has_valid_sat && (std::isnan(Rho_star_v) || Rho_star_v > rl_sat)) {
+                Rho_star_v = rv_sat;
+            }
+            // Above critical P, just check for NaN and use a reasonable fallback
+            else if (!has_valid_sat && std::isnan(Rho_star_v)) {
+                Rho_star_v = 100.0; // Typical supercritical vapor-like density
+            }
 
             double V_v_mol = mass_h2o / Rho_star_v;
             Rho_v = (mass_h2o * (1.0 - X_v) + mass_salt * X_v) / V_v_mol;

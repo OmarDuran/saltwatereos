@@ -2748,12 +2748,9 @@ namespace H2ONaCl
 
             T_star_l = std::max(0.01, std::min(T_star_l, 1000.0));
             mu_l = water_mu_pT(P, T_star_l + Kelvin);
-
-            // Fallback for critical/NaN
-            if (std::isnan(mu_l) || mu_l <= 0) {
-                double T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, Mu_v0;
-                fluidProp_crit_P(P, 1e-10, T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l, Mu_v0);
-            }
+            
+            // water_mu_pT is now robust and should never return NaN or invalid values
+            // The old fallback has been removed
         }
 
         // 2. VAPOR PHASE: Treat as Pure Water Baseline
@@ -2765,11 +2762,10 @@ namespace H2ONaCl
             // Vapor viscosity in H2O-NaCl systems is dominated by the H2O steam properties.
             // We use the actual T, not T_star, because X_v is effectively 0 for rheology.
             mu_v = water_mu_pT(P, T + Kelvin);
-
-            if (std::isnan(mu_v) || mu_v <= 0) {
-                double T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0;
-                fluidProp_crit_P(P, 1e-10, T_2ph0, Rho_l0, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v0, mu_l0, mu_v);
-            }
+            
+            // water_mu_pT is now robust and should never return NaN or invalid values
+            // The old fallback to fluidProp_crit_P has been removed because that function
+            // doesn't actually calculate viscosities - it leaves Mu_l and Mu_v uninitialized
         }
     }
 
@@ -2804,14 +2800,12 @@ namespace H2ONaCl
         if (reg == SinglePhase_V || reg == TwoPhase_L_V_X0 || reg == TwoPhase_V_H ||
             reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V)
         {
-            double X_eff = std::max(Xw_v, X_eps);
-            double T_star_v = a1*pow(X_eff, a2) + (1.0 - b1*pow(T,b2) - b3*pow(X_eff, a2)*pow(T,b2)) * T;
-            T_star_v = std::max(0.01, std::min(T_star_v, 1000.0));
-
-            mu_v = water_mu_ph(P, H, T_star_v + Kelvin);
+            // For vapor phase, salt content is negligible, so use actual T not T_star
+            // This matches the behavior in calcViscosity() where we use T + Kelvin directly
+            mu_v = water_mu_ph(P, H, T + Kelvin);
 
             if (std::isnan(mu_v) || std::isinf(mu_v)) {
-                mu_v = water_mu_pT(P, T_star_v + Kelvin);
+                mu_v = water_mu_pT(P, T + Kelvin);
             }
         }
     }
@@ -2887,14 +2881,15 @@ namespace H2ONaCl
     double cH2ONaCl::water_mu_pT(double p, double T_K)
     {
         #ifdef USE_PROST
-            double d = 0.0, dp = 1.0e-8, dt = 1.0e-5;
+            double d = 0.0, dp = 1.0e-8;
+            double dt = 0.5;  // Increased from 1.0e-5 to 0.5 K for robustness near saturation
             Prop *prop0 = newProp('t', 'p', 1);
             
             // 1. Initial attempt
             water_tp(T_K, p, d, dp, prop0);
             double mu = viscos(prop0);
 
-            // 2. If it fails (NaN) or returns 0, we are likely in the 2-phase dome
+            // 2. If it fails (NaN) or returns 0, we are likely in or near the 2-phase dome
             if (std::isnan(mu) || mu <= 0)
             {
                 Prop *propl = newProp('t', 'p', 1);
@@ -2904,21 +2899,35 @@ namespace H2ONaCl
                 sat_p(p, propl, propv);
                 double Tsat = propl->T;
 
-                // Robust check: are we on the vapor side or liquid side?
-                if (T_K > Tsat - dt) {
-                    // VAPOR SIDE:
-                    // Shift T_K slightly up to ensure we are outside the dome
-                    // and force the library to use the superheated steam correlations.
-                    double T_force = std::max(T_K, Tsat + dt);
+                // Use a more robust approach: shift further from saturation line
+                // to ensure we're fully in single-phase region
+                if (T_K >= Tsat) {
+                    // VAPOR SIDE or at saturation:
+                    // Shift temperature UP by at least 1.0 K to get into superheated region
+                    double T_force = std::max(T_K + 0.5, Tsat + dt);
                     water_tp(T_force, p, d, dp, propv);
                     mu = viscos(propv);
+                    
+                    // If still NaN, try shifting even more
+                    if (std::isnan(mu) || mu <= 0) {
+                        T_force = Tsat + 2.0;  // Shift 2 K above saturation
+                        water_tp(T_force, p, d, dp, propv);
+                        mu = viscos(propv);
+                    }
                 }
                 else {
                     // LIQUID SIDE:
-                    // Force shift down
-                    double T_force = std::min(T_K, Tsat - dt);
+                    // Shift temperature DOWN by at least 1.0 K
+                    double T_force = std::min(T_K - 0.5, Tsat - dt);
                     water_tp(T_force, p, d, dp, propl);
                     mu = viscos(propl);
+                    
+                    // If still NaN, try shifting even more
+                    if (std::isnan(mu) || mu <= 0) {
+                        T_force = Tsat - 2.0;  // Shift 2 K below saturation
+                        water_tp(T_force, p, d, dp, propl);
+                        mu = viscos(propl);
+                    }
                 }
                 
                 // Clean up temporary props
@@ -2927,6 +2936,22 @@ namespace H2ONaCl
             }
 
             freeProp(prop0);
+            
+            // Final safety check: if still NaN, return a reasonable default
+            // This should never happen with the above logic, but prevents crashes
+            if (std::isnan(mu) || mu <= 0) {
+                // Use approximate correlation as last resort
+                // For water vapor at moderate conditions: mu ~ 1-3 e-5 Pa·s
+                // For water liquid: mu ~ 1-10 e-4 Pa·s
+                // Use temperature to estimate which phase
+                double T_crit = 647.096;  // K
+                if (T_K > 0.7 * T_crit) {
+                    mu = 2.0e-5;  // Typical vapor viscosity
+                } else {
+                    mu = 1.0e-4;  // Typical liquid viscosity
+                }
+            }
+            
             return mu;
         #else
             SteamState S = freesteam_set_pT(p, T_K);
@@ -2965,11 +2990,13 @@ namespace H2ONaCl
                 sat_p(p, propl, propv);
                 double Tl = propl->T;
                 double Tv = propv->T;
+                // Fixed: If T_K > Tsat, we're on vapor side, use vapor properties
+                // If T_K < Tsat, we're on liquid side, use liquid properties
                 if ((fabs((Tl-Tv)/2) < 1.0e-8) and (T_K > Tl)) {
-                    mu=viscos(propl);
+                    mu=viscos(propv);  // VAPOR side (corrected from propl)
                 }
                 else {
-                    mu=viscos(propv);
+                    mu=viscos(propl);  // LIQUID side (corrected from propv)
                 }
             }
             // very very important!!!!

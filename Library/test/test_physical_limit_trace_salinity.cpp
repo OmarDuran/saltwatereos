@@ -308,6 +308,169 @@ int main()
         cout << "\n";
     }
     
+    // NEW: Viscosity Continuity Test
+    cout << "====================================================\n";
+    cout << "Testing Viscosity Continuity Across Phase Regions\n";
+    cout << "====================================================\n\n";
+    cout << "Checking for discontinuous jumps in Mu_v (vapor viscosity)\n";
+    cout << "across two-phase and single-phase regions.\n\n";
+    
+    int visc_tests = 0;
+    int visc_jumps_detected = 0;
+    double max_mu_v_jump = 0.0;
+    
+    // Test 1: Temperature scan at moderate pressure
+    cout << "Viscosity Test 1: Temperature scan at P=100 bar, X=0.05\n";
+    cout << "---------------------------------------------------------------\n";
+    cout << setw(10) << "T (°C)"
+         << setw(12) << "Region"
+         << setw(15) << "Mu_v (Pa·s)"
+         << setw(15) << "ΔMu_v (%)"
+         << setw(12) << "S_l"
+         << setw(12) << "S_v" << "\n";
+    cout << string(80, '-') << "\n";
+    
+    double P_visc1 = 100.0e5;  // 100 bar
+    double X_visc1 = 0.05;     // 5% salinity
+    double prev_Mu_v = 0.0;
+    int prev_region = -1;
+    
+    for(double T = 200.0; T <= 400.0; T += 5.0) {
+        double T_K = T + 273.15;
+        H2ONaCl::PROP_H2ONaCl prop = eos.prop_pTX(P_visc1, T_K, X_visc1, true);
+        
+        double delta_Mu_v = 0.0;
+        if(prev_Mu_v > 1e-12 && prop.Mu_v > 1e-12) {
+            delta_Mu_v = 100.0 * (prop.Mu_v - prev_Mu_v) / prev_Mu_v;
+            
+            // Flag significant jumps (> 15%) especially at region transitions
+            if(std::abs(delta_Mu_v) > 15.0) {
+                visc_jumps_detected++;
+                max_mu_v_jump = max(max_mu_v_jump, std::abs(delta_Mu_v));
+            }
+        }
+        
+        cout << setw(10) << fixed << setprecision(1) << T
+             << setw(12) << prop.Region
+             << setw(15) << scientific << setprecision(4) << prop.Mu_v
+             << setw(15) << fixed << setprecision(2) << delta_Mu_v
+             << setw(12) << setprecision(4) << prop.S_l
+             << setw(12) << setprecision(4) << prop.S_v;
+        
+        if(std::abs(delta_Mu_v) > 15.0 && prev_region >= 0) {
+            cout << "  *** JUMP at region " << prev_region << "→" << prop.Region << " ***";
+        }
+        cout << "\n";
+        
+        prev_Mu_v = prop.Mu_v;
+        prev_region = prop.Region;
+        visc_tests++;
+    }
+    cout << "\n";
+    
+    // Test 2: Salinity scan at two-phase conditions
+    cout << "Viscosity Test 2: Salinity scan at P=50 bar, T=350 °C\n";
+    cout << "---------------------------------------------------------------\n";
+    cout << setw(10) << "X_wt"
+         << setw(12) << "Region"
+         << setw(15) << "Mu_v (Pa·s)"
+         << setw(15) << "ΔMu_v (%)"
+         << setw(12) << "S_l"
+         << setw(12) << "S_v" << "\n";
+    cout << string(80, '-') << "\n";
+    
+    double P_visc2 = 50.0e5;    // 50 bar
+    double T_visc2 = 350.0 + 273.15;  // 350°C
+    prev_Mu_v = 0.0;
+    prev_region = -1;
+    
+    for(double X = 0.0; X <= 0.2501; X += 0.01) {
+        H2ONaCl::PROP_H2ONaCl prop = eos.prop_pTX(P_visc2, T_visc2, X, true);
+        
+        double delta_Mu_v = 0.0;
+        if(prev_Mu_v > 1e-12 && prop.Mu_v > 1e-12) {
+            delta_Mu_v = 100.0 * (prop.Mu_v - prev_Mu_v) / prev_Mu_v;
+            
+            if(std::abs(delta_Mu_v) > 15.0) {
+                visc_jumps_detected++;
+                max_mu_v_jump = max(max_mu_v_jump, std::abs(delta_Mu_v));
+            }
+        }
+        
+        cout << setw(10) << fixed << setprecision(4) << X
+             << setw(12) << prop.Region
+             << setw(15) << scientific << setprecision(4) << prop.Mu_v
+             << setw(15) << fixed << setprecision(2) << delta_Mu_v
+             << setw(12) << setprecision(4) << prop.S_l
+             << setw(12) << setprecision(4) << prop.S_v;
+        
+        if(std::abs(delta_Mu_v) > 15.0 && prev_region >= 0) {
+            cout << "  *** JUMP at region " << prev_region << "→" << prop.Region << " ***";
+        }
+        cout << "\n";
+        
+        prev_Mu_v = prop.Mu_v;
+        prev_region = prop.Region;
+        visc_tests++;
+    }
+    cout << "\n";
+    
+    // Test 3: Near critical point scan (trace salinity)
+    cout << "Viscosity Test 3: Near critical point at P=220 bar, X=0.0001\n";
+    cout << "---------------------------------------------------------------\n";
+    cout << setw(10) << "T (°C)"
+         << setw(12) << "Region"
+         << setw(15) << "Mu_v (Pa·s)"
+         << setw(15) << "ΔMu_v (%)" << "\n";
+    cout << string(60, '-') << "\n";
+    
+    double P_visc3 = 220.0e5;   // 220 bar (near critical)
+    double X_visc3 = 0.0001;    // Trace salinity
+    prev_Mu_v = 0.0;
+    prev_region = -1;
+    
+    for(double T = 360.0; T <= 390.0; T += 1.0) {
+        double T_K = T + 273.15;
+        H2ONaCl::PROP_H2ONaCl prop = eos.prop_pTX(P_visc3, T_K, X_visc3, true);
+        
+        double delta_Mu_v = 0.0;
+        if(prev_Mu_v > 1e-12 && prop.Mu_v > 1e-12) {
+            delta_Mu_v = 100.0 * (prop.Mu_v - prev_Mu_v) / prev_Mu_v;
+            
+            if(std::abs(delta_Mu_v) > 15.0) {
+                visc_jumps_detected++;
+                max_mu_v_jump = max(max_mu_v_jump, std::abs(delta_Mu_v));
+            }
+        }
+        
+        cout << setw(10) << fixed << setprecision(1) << T
+             << setw(12) << prop.Region
+             << setw(15) << scientific << setprecision(4) << prop.Mu_v
+             << setw(15) << fixed << setprecision(2) << delta_Mu_v;
+        
+        if(std::abs(delta_Mu_v) > 15.0 && prev_region >= 0) {
+            cout << "  *** JUMP at region " << prev_region << "→" << prop.Region << " ***";
+        }
+        cout << "\n";
+        
+        prev_Mu_v = prop.Mu_v;
+        prev_region = prop.Region;
+        visc_tests++;
+    }
+    cout << "\n";
+    
+    cout << "Viscosity continuity test summary:\n";
+    cout << "  Total viscosity checks: " << visc_tests << "\n";
+    cout << "  Discontinuous jumps detected (>15%): " << visc_jumps_detected << "\n";
+    if(visc_jumps_detected > 0) {
+        cout << "  Maximum viscosity jump: " << fixed << setprecision(1) << max_mu_v_jump << "%\n";
+        cout << "\n  ⚠ WARNING: Vapor viscosity has discontinuities!\n";
+        cout << "  This indicates jumps in Mu_v at phase boundaries.\n";
+    } else {
+        cout << "\n  ✓ SUCCESS: No significant viscosity discontinuities detected\n";
+    }
+    cout << "\n";
+    
     // Summary
     cout << "====================================================\n";
     cout << "Summary:\n";
@@ -322,6 +485,10 @@ int main()
          << " (" << setprecision(2) << max_h_error*100 << "%)\n";
     cout << "  Maximum viscosity error: " << setprecision(3) << max_mu_error
          << " (" << setprecision(2) << max_mu_error*100 << "%)\n";
+    if(visc_jumps_detected > 0) {
+        cout << "  Vapor viscosity discontinuities: " << visc_jumps_detected
+             << " (max jump: " << fixed << setprecision(1) << max_mu_v_jump << "%)\n";
+    }
     cout << "====================================================\n\n";
     
     int pHX_liquid_supercrit = pHX_tests - pHX_failed;  // Tests that passed (liquid and supercritical)
@@ -344,6 +511,11 @@ int main()
         if(pHX_failed > 0) {
             cout << "\nNote: " << pHX_failed << " prop_pHX_bisection test(s) failed, likely due to\n";
             cout << "      region identification differences near phase boundaries.\n";
+        }
+        if(visc_jumps_detected > 0) {
+            cout << "\n⚠ WARNING: " << visc_jumps_detected << " vapor viscosity discontinuities detected.\n";
+            cout << "   Maximum jump: " << fixed << setprecision(1) << max_mu_v_jump << "%\n";
+            cout << "   This indicates Mu_v has jumps at phase boundaries that should be fixed.\n";
         }
         return 0;
     }

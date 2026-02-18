@@ -857,7 +857,12 @@ namespace H2ONaCl
             break;
         case 1:
             {
-                T1=0;
+                // For very low salinity, use safe bounds close to pure water
+                if(X < 1e-4) {
+                    T1 = 0.1;  // Safe minimum temperature
+                } else {
+                    T1 = 0;
+                }
                 double h_l0, h_v0, dpd_l0, dpd_v0, Mu_l0, Mu_v0,Rho_l,Rho_v;
                 fluidProp_crit_P(P*1e6 , tol, T2, Rho_l, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
                 T2 = T2 + 1e-7;
@@ -865,6 +870,8 @@ namespace H2ONaCl
                 if(X<0.2 && X >= 0.1) T2=  T2 + X *100;
                 if(X>0.2 && X <= 0.4) T2=  T2 + X *100;
                 if(X>0.4 && X <= 1)  T2=  T2 + X *500;
+                // For very low salinity, ensure T2 is reasonable
+                if(X < 1e-4 && T2 < 50) T2 = 50;
                 if(T2> 1000) T2= 1000;
             }
             break;
@@ -881,10 +888,17 @@ namespace H2ONaCl
             break;
         case 4:
             {
-                T1 = 0;
+                // For very low salinity, use safe lower bound
+                if(X < 1e-4) {
+                    T1 = 0.1;
+                } else {
+                    T1 = 0;
+                }
                 T2 = 450;
                 if(X >= 0.3 && X <= 0.5) T2 =  T2 + X *800;
                 if(X >= 0.5 && X <= 1) T2 =  T2 + X *1800;
+                // For very low salinity, ensure reasonable upper bound
+                if(X < 1e-4 && T2 < 500) T2 = 500;
                 if(T2> 1000) T2 = 1000;
             }
             break;
@@ -897,6 +911,18 @@ namespace H2ONaCl
             break;
         default:
             break;
+        }
+        
+        // Safety fallback: ensure T1 and T2 are never zero or invalid
+        if(T1 <= 0 || T2 <= 0 || T1 >= T2) {
+            // Use conservative bounds for very low salinity
+            if(X < 1e-3) {
+                T1 = 0.1;
+                T2 = 1000.0;
+            } else {
+                T1 = 0.1;
+                T2 = 800.0;
+            }
         }
     }
 

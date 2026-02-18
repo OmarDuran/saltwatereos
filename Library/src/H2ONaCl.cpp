@@ -501,7 +501,7 @@ namespace H2ONaCl
         prop.P = p; prop.H = H; prop.X_wt = X_wt;
 
         const double tol = 1e-7;
-        const int max_iter = 500;
+        const int max_iter = 1000;
         double T1, T2;
         
         // Critical point constants for pure water (IAPWS-95)

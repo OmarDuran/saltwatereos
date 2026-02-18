@@ -520,23 +520,29 @@ namespace H2ONaCl
                 if(PROP_mid.S_l < 0) // calc S_h and S_v
                 {
                     PROP_mid.S_h = (PROP_mid.Rho_v * (PROP_mid.X_v - X_wt))/(PROP_mid.Rho_h * (X_wt-1) + PROP_mid.Rho_v * (PROP_mid.X_v - X_wt));
+                    PROP_mid.S_h = std::max(0.0, std::min(1.0, PROP_mid.S_h)); // Clamp
                     PROP_mid.S_v = 1 - PROP_mid.S_h;
                     PROP_mid.Rho = PROP_mid.S_v * PROP_mid.Rho_v + PROP_mid.S_h * PROP_mid.Rho_h;
                     PROP_mid.H   = (PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                    PROP_mid.S_l = 0.0; // Set to zero since it was negative
                 }
                 if(PROP_mid.S_v < 0) // calc S_h and S_l
                 {
                     PROP_mid.S_h = (PROP_mid.Rho_l*(PROP_mid.X_l-X_wt))/(PROP_mid.Rho_h*(X_wt-1) + PROP_mid.Rho_l*(PROP_mid.X_l-X_wt));
+                    PROP_mid.S_h = std::max(0.0, std::min(1.0, PROP_mid.S_h)); // Clamp
                     PROP_mid.S_l = 1 - PROP_mid.S_h;
                     PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_h * PROP_mid.Rho_h;
                     PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                    PROP_mid.S_v = 0.0; // Set to zero since it was negative
                 }
                 if(PROP_mid.S_h < 0) // calc S_l and S_v
                 {
                     PROP_mid.S_l = (PROP_mid.Rho_v*(PROP_mid.X_v - X_wt))/(PROP_mid.Rho_v*(PROP_mid.X_v-X_wt)+ PROP_mid.Rho_l*(X_wt-PROP_mid.X_l));
+                    PROP_mid.S_l = std::max(0.0, std::min(1.0, PROP_mid.S_l)); // Clamp
                     PROP_mid.S_v = 1 - PROP_mid.S_l;
                     PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_v * PROP_mid.Rho_v;
                     PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v) / PROP_mid.Rho;
+                    PROP_mid.S_h = 0.0; // Set to zero since it was negative
                 }
             }
             
@@ -589,21 +595,27 @@ namespace H2ONaCl
             // Handle negative saturations
             if(prop.S_l < 0) {
                 prop.S_h = (prop.Rho_v * (prop.X_v - X_wt))/(prop.Rho_h * (X_wt-1) + prop.Rho_v * (prop.X_v - X_wt));
+                prop.S_h = std::max(0.0, std::min(1.0, prop.S_h)); // Clamp
                 prop.S_v = 1 - prop.S_h;
                 prop.Rho = prop.S_v * prop.Rho_v + prop.S_h * prop.Rho_h;
                 prop.H   = (prop.S_v * prop.Rho_v * prop.H_v + prop.S_h * prop.Rho_h * prop.H_h) / prop.Rho;
+                prop.S_l = 0.0;
             }
             if(prop.S_v < 0) {
                 prop.S_h = (prop.Rho_l*(prop.X_l-X_wt))/(prop.Rho_h*(X_wt-1) + prop.Rho_l*(prop.X_l-X_wt));
+                prop.S_h = std::max(0.0, std::min(1.0, prop.S_h)); // Clamp
                 prop.S_l = 1 - prop.S_h;
                 prop.Rho = prop.S_l * prop.Rho_l + prop.S_h * prop.Rho_h;
                 prop.H   = (prop.S_l * prop.Rho_l * prop.H_l + prop.S_h * prop.Rho_h * prop.H_h) / prop.Rho;
+                prop.S_v = 0.0;
             }
             if(prop.S_h < 0) {
                 prop.S_l = (prop.Rho_v*(prop.X_v - X_wt))/(prop.Rho_v*(prop.X_v-X_wt)+ prop.Rho_l*(X_wt-prop.X_l));
+                prop.S_l = std::max(0.0, std::min(1.0, prop.S_l)); // Clamp
                 prop.S_v = 1 - prop.S_l;
                 prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v;
                 prop.H   = (prop.S_l * prop.Rho_l * prop.H_l + prop.S_v * prop.Rho_v * prop.H_v) / prop.Rho;
+                prop.S_h = 0.0;
             }
         } else if (prop.Region == TwoPhase_L_V_X0) {
             // Recalculate for pure water saturation
@@ -904,18 +916,37 @@ namespace H2ONaCl
             double denom = prop.Rho_v * (Xw_v - X_wt) + prop.Rho_l * (X_wt - Xw_l);
             double beta_l = (std::abs(denom) > 1e-12) ? (prop.Rho_v * (Xw_v - X_wt)) / denom : 0.5;
             
+            // Clamp beta_l to [0, 1] to prevent negative saturations
+            beta_l = std::max(0.0, std::min(1.0, beta_l));
+            
             prop.S_l = (beta_l * prop.Rho_l) / (beta_l * prop.Rho_l + (1.0 - beta_l) * prop.Rho_v);
             prop.S_v = 1.0 - prop.S_l;
+            
+            // Additional safety: clamp saturations to [0, 1]
+            prop.S_l = std::max(0.0, std::min(1.0, prop.S_l));
+            prop.S_v = std::max(0.0, std::min(1.0, prop.S_v));
         }
         else if (prop.Region == TwoPhase_V_H) {
             double beta_h = (prop.Rho_v * (Xw_v - X_wt)) / (prop.Rho_h * (X_wt - 1.0) + prop.Rho_v * (Xw_v - X_wt));
+            beta_h = std::max(0.0, std::min(1.0, beta_h)); // Clamp to [0,1]
+            
             prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_v);
             prop.S_v = 1.0 - prop.S_h;
+            
+            // Additional safety: clamp saturations
+            prop.S_h = std::max(0.0, std::min(1.0, prop.S_h));
+            prop.S_v = std::max(0.0, std::min(1.0, prop.S_v));
         }
         else if (prop.Region == TwoPhase_L_H) {
             double beta_h = (prop.Rho_l * (Xw_l - X_wt)) / (prop.Rho_h * (X_wt - 1.0) + prop.Rho_l * (Xw_l - X_wt));
+            beta_h = std::max(0.0, std::min(1.0, beta_h)); // Clamp to [0,1]
+            
             prop.S_h = (beta_h * prop.Rho_h) / (beta_h * prop.Rho_h + (1.0 - beta_h) * prop.Rho_l);
             prop.S_l = 1.0 - prop.S_h;
+            
+            // Additional safety: clamp saturations
+            prop.S_h = std::max(0.0, std::min(1.0, prop.S_h));
+            prop.S_l = std::max(0.0, std::min(1.0, prop.S_l));
         }
 
         // 6. BULK PROPERTIES

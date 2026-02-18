@@ -651,6 +651,33 @@ namespace H2ONaCl
                 prop.H_l = 0;
                 prop.Rho_l = 0;
             }
+        } else if (prop.Region == TwoPhase_V_L_V || prop.Region == TwoPhase_V_L_L) {
+            // Recalculate saturations for two-phase V+L regions to match target H
+            // Use lever rule based on enthalpies
+            if(prop.Rho_l > 0 && prop.Rho_v > 0 && prop.H_l > 0 && prop.H_v > 0) {
+                // Calculate liquid saturation from enthalpy balance
+                double denom = (prop.H_v - prop.H_l);
+                if(fabs(denom) > 1e-6) {
+                    double x_v = (H - prop.H_l) / denom; // Mass fraction of vapor
+                    x_v = std::max(0.0, std::min(1.0, x_v)); // Clamp to [0,1]
+                    
+                    // Convert mass fraction to volume fraction
+                    // x_v = (S_v * Rho_v) / (S_v * Rho_v + S_l * Rho_l)
+                    // Solve for S_v:
+                    // S_v = (x_v * Rho_l) / (Rho_v + x_v * (Rho_l - Rho_v))
+                    prop.S_v = (x_v * prop.Rho_l) / (prop.Rho_v + x_v * (prop.Rho_l - prop.Rho_v));
+                    prop.S_v = std::max(0.0, std::min(1.0, prop.S_v));
+                    prop.S_l = 1.0 - prop.S_v;
+                    
+                    // Recalculate bulk density
+                    prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v;
+                    
+                    // Verify enthalpy (should now match H)
+                    double x_l = (prop.S_l * prop.Rho_l) / prop.Rho;
+                    x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
+                    prop.H = x_l * prop.H_l + x_v * prop.H_v;
+                }
+            }
         }
         
         // Final X_wt==1 handling for halite melting

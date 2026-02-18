@@ -37,7 +37,8 @@ int main()
         {10.0,  400.0,  0.0,  "Low pressure pure water"},
         {100.0, 1500.0, 0.15, "High salinity"},
         {150.0, 2200.0, 0.02, "Near critical"},
-        {300.0, 2800.0, 0.05, "Very high enthalpy (adjusted)"}
+        {300.0, 2800.0, 0.05, "Very high enthalpy (adjusted)"},
+        {26.0,  2460.0, 0.009, "EXPECTED FAIL: H=2460 unachievable at P=26, X=0.009 (see INVESTIGATION_P26_H2460_X0009.md)"}
     };
     
     int total_tests = 0;

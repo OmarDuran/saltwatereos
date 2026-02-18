@@ -1117,33 +1117,26 @@ namespace H2ONaCl
         if (prop.Region == SinglePhase_L) {
             prop.S_l = 1.0;
             
-            // For ultra-low salinity in supercritical region, distinguish vapor-like from liquid-like
-            // based on density comparison with IAPWS-95 critical density
+            // For ultra-low salinity in supercritical region, use the unified detection
+            // function to distinguish vapor-like from liquid-like based on IAPWS-95 density
             if (X_wt < 0.001) {  // Ultra-low salinity (< 0.1 wt%)
-                double T_crit_H2O = 373.946;  // °C (IAPWS-95)
-                double P_crit_H2O_Pa = 22.064e6;  // Pa (IAPWS-95)
-                double Rho_crit_H2O = 322.0;  // kg/m³ (IAPWS-95 critical density)
+                SupercriticalRegionInfo scInfo = detectSupercriticalRegion(T_c, p_Pa, X_wt, Xwt2Xmol(X_wt));
                 
-                // Check if we're in supercritical region
-                if (p_Pa > P_crit_H2O_Pa && T_c > T_crit_H2O) {
-                    // In supercritical region: distinguish vapor-like from liquid-like
-                    // Vapor-like: density < critical density (S_v = 1.0, S_l = 0.0)
-                    // Liquid-like: density > critical density (S_l = 1.0, S_v = 0.0)
+                // If supercritical and vapor-like, swap properties for continuity
+                if (scInfo.isSupercritical && scInfo.isVaporLike) {
+                    // Vapor-like supercritical state
+                    prop.S_v = 1.0;
+                    prop.S_l = 0.0;
                     
-                    if (prop.Rho_l < Rho_crit_H2O) {
-                        // Vapor-like supercritical state
-                        prop.S_v = 1.0;
-                        prop.S_l = 0.0;
-                        // For continuity, we should swap liquid and vapor properties
-                        // so that the bulk properties use the vapor-like values
-                        std::swap(prop.Rho_l, prop.Rho_v);
-                        std::swap(prop.H_l, prop.H_v);
-                        std::swap(prop.X_l, prop.X_v);
-                        // Update region to indicate this is vapor-like
-                        prop.Region = SinglePhase_V;
-                    }
-                    // else: liquid-like supercritical state, keep S_l = 1.0, S_v = 0.0
+                    // Swap liquid and vapor properties for continuity
+                    std::swap(prop.Rho_l, prop.Rho_v);
+                    std::swap(prop.H_l, prop.H_v);
+                    std::swap(prop.X_l, prop.X_v);
+                    
+                    // Update region to indicate this is vapor-like
+                    prop.Region = SinglePhase_V;
                 }
+                // else: liquid-like supercritical state, keep S_l = 1.0, S_v = 0.0
             }
         }
         else if (prop.Region == SinglePhase_V) {
@@ -1361,6 +1354,82 @@ namespace H2ONaCl
         return prop.Mu;
     }
 
+  // ============================================================================
+  // Supercritical Region Detection for Ultra-Low Salinity
+  // ============================================================================
+  
+  cH2ONaCl::SupercriticalRegionInfo cH2ONaCl::detectSupercriticalRegion(
+      const double T_c, const double p_Pa, const double X_wt, const double X_mol)
+  {
+      SupercriticalRegionInfo info;
+      info.isSupercritical = false;
+      info.isVaporLike = false;
+      info.density = 0.0;
+      info.recommendedRegion = SinglePhase_L;
+      
+      // IAPWS-95 critical constants for pure water
+      const double T_crit_H2O_C = 373.946;      // °C
+      const double P_crit_H2O_Pa = 22.064e6;    // Pa
+      const double Rho_crit_H2O = 322.0;        // kg/m³
+      
+      // Check if this is ultra-low salinity (< 0.1 wt%)
+      if (X_wt >= 0.001) {
+          // Not ultra-low salinity, return default values
+          return info;
+      }
+      
+      // Check if we're in the supercritical region for pure water
+      if (p_Pa > P_crit_H2O_Pa && T_c > T_crit_H2O_C) {
+          info.isSupercritical = true;
+          
+          // Calculate density using IAPWS-95 (via PROST interface)
+          // Convert temperature to Kelvin for water property calculation
+          double T_K = T_c + 273.15;
+          
+          // Calculate density using water properties
+          info.density = water_rho_pT(p_Pa, T_K);
+          
+          // Determine if vapor-like or liquid-like based on density
+          // Vapor-like: density < critical density
+          // Liquid-like: density >= critical density
+          if (info.density < Rho_crit_H2O) {
+              info.isVaporLike = true;
+              info.recommendedRegion = SinglePhase_V;
+          } else {
+              info.isVaporLike = false;
+              info.recommendedRegion = SinglePhase_L;
+          }
+      }
+      // If not supercritical, check for other regions
+      else {
+          // Calculate saturation pressure for pure water
+          double Psat_H2O_Pa = m_water.P_Boiling(T_c) * 1e5;  // Convert bar to Pa
+          
+          // Above critical temperature but subcritical pressure: always vapor
+          if (T_c > T_crit_H2O_C && p_Pa < P_crit_H2O_Pa) {
+              info.recommendedRegion = SinglePhase_V;
+          }
+          // Subcritical: compare with saturation pressure
+          else if (T_c < T_crit_H2O_C) {
+              if (p_Pa > Psat_H2O_Pa) {
+                  info.recommendedRegion = SinglePhase_L;  // Compressed liquid
+              } else {
+                  info.recommendedRegion = SinglePhase_V;  // Superheated vapor
+              }
+          }
+          // At saturation
+          else if (std::abs(p_Pa - Psat_H2O_Pa) < 1e4) {  // Tolerance of 0.01 bar
+              info.recommendedRegion = TwoPhase_L_V_X0;
+          }
+      }
+      
+      return info;
+  }
+
+  // ============================================================================
+  // Phase Region Detection
+  // ============================================================================
+  
   PhaseRegion cH2ONaCl::findRegion(const double T, const double P_Pa, const double X_mol, double& Xl_all, double& Xv_all)
   {
       const double Pres_bar = P_Pa / 1e5;
@@ -1391,92 +1460,57 @@ namespace H2ONaCl
       // 5. Region Assignment
       PhaseRegion region_ind = SinglePhase_L;
 
-      // Pure Water Check (exact zero salinity)
-      if (X_mol <= 1e-10) {
-          double T_crit_H2O = 373.946;  // °C (IAPWS-95)
-          double P_crit_H2O_bar = 220.64;  // bar (IAPWS-95)
-          
-          // Supercritical region
-          if (Pres_bar > P_crit_H2O_bar && T > T_crit_H2O) {
-              // In the supercritical region for pure water, we return SinglePhase_L
-              // but the caller (prop_pTX) will need to determine if it's vapor-like or liquid-like
-              Xl_all = 0.0;
-              Xv_all = 0.0;
-              return SinglePhase_L;  // Supercritical (use liquid formulation)
-          }
-          
-          // Check if at saturation
-          if (Pres_bar <= P_crit_H2O_bar && std::abs(Pres_bar - Psat_H2O_bar) < 1e-4) {
-              return TwoPhase_L_V_X0;
-          }
-          
-          // Above critical temperature but subcritical pressure: superheated vapor
-          if (T > T_crit_H2O && Pres_bar < P_crit_H2O_bar) {
-              Xl_all = 0.0;
-              Xv_all = 0.0;
-              return SinglePhase_V;  // Superheated steam
-          }
-          
-          // Subcritical: determine liquid or vapor based on saturation pressure
-          if (Pres_bar > Psat_H2O_bar) {
-              Xl_all = 0.0;
-              Xv_all = 0.0;
-              return SinglePhase_L;  // Compressed liquid
-          } else {
-              Xl_all = 0.0;
-              Xv_all = 0.0;
-              return SinglePhase_V;  // Superheated vapor
-          }
-      }
+      // ========================================================================
+      // UNIFIED REGION DETECTION FOR PURE WATER AND ULTRA-LOW SALINITY
+      // Use the standalone detectSupercriticalRegion function for consistency
+      // ========================================================================
       
-      // Ultra-low salinity: Treat more like pure water to match IAPWS behavior
-      // Convert X_mol to weight fraction for comparison: X_wt ≈ X_mol * (58.44/18.015) ≈ 3.244 * X_mol
+      // Convert X_mol to weight fraction: X_wt ≈ X_mol * (M_NaCl/M_H2O) ≈ X_mol * 3.244
       double X_wt_approx = X_mol * 3.244;
-      bool ultra_low_salinity = (X_wt_approx < 0.001);  // X_wt < 0.001 (0.1%)
       
-      if (ultra_low_salinity) {
-          // For ultra-low salinity, check if we're close enough to pure water behavior
-          // The key is to check if the system is outside the two-phase envelope
-          // by a margin proportional to the salinity
+      // Pure water or ultra-low salinity (< 0.1 wt%)
+      if (X_wt_approx < 0.001) {
+          // Use the unified supercritical detection function
+          SupercriticalRegionInfo scInfo = detectSupercriticalRegion(T, P_Pa, X_wt_approx, X_mol);
           
-          double T_crit_H2O = 373.946;  // °C (IAPWS-95)
-          double P_crit_H2O_bar = 220.64;  // bar (IAPWS-95)
+          // Handle pure water (exact zero salinity)
+          if (X_mol <= 1e-10) {
+              Xl_all = 0.0;
+              Xv_all = 0.0;
+              return scInfo.recommendedRegion;
+          }
           
-          // Supercritical region: P > P_crit and T > T_crit
-          // For ultra-low salinity in supercritical region, return SinglePhase_L
-          // and let prop_pTX distinguish vapor-like from liquid-like
-          if (Pres_bar > P_crit_H2O_bar && T > T_crit_H2O) {
+          // Handle ultra-low salinity
+          // In supercritical region, return SinglePhase_L and let prop_pTX
+          // distinguish vapor-like from liquid-like using the density
+          if (scInfo.isSupercritical) {
               Xl_all = X_mol;
               Xv_all = X_mol;
-              return SinglePhase_L;  // Supercritical single phase
+              return SinglePhase_L;  // Will be refined by prop_pTX
           }
           
-          // Above critical temperature but subcritical pressure: always vapor
-          if (T > T_crit_H2O && Pres_bar < P_crit_H2O_bar) {
+          // For non-supercritical ultra-low salinity, use IAPWS-based detection
+          // but allow falling through to two-phase logic if near saturation
+          double Psat_H2O_bar = m_water.P_Boiling(T);
+          double P_margin = Psat_H2O_bar * 0.1 * X_wt_approx / 0.001;  // Proportional margin
+          
+          if (Pres_bar > Psat_H2O_bar + P_margin) {
+              // Well above saturation: single phase liquid
+              Xl_all = X_mol;
+              Xv_all = 0.0;
+              return SinglePhase_L;
+          } else if (Pres_bar < Psat_H2O_bar - P_margin) {
+              // Well below saturation: single phase vapor
               Xl_all = 0.0;
               Xv_all = X_mol;
-              return SinglePhase_V;  // Superheated steam (always vapor above T_crit at low P)
+              return SinglePhase_V;
           }
-          
-          // Subcritical conditions: compare with saturation pressure
-          if (T < T_crit_H2O) {
-              // Use saturation pressure comparison with tolerance based on salinity
-              double P_margin = Psat_H2O_bar * 0.1 * X_wt_approx / 0.001;  // Proportional margin
-              
-              if (Pres_bar > Psat_H2O_bar + P_margin) {
-                  // Well above saturation: single phase liquid
-                  Xl_all = X_mol;
-                  Xv_all = 0.0;
-                  return SinglePhase_L;
-              } else if (Pres_bar < Psat_H2O_bar - P_margin) {
-                  // Well below saturation: single phase vapor
-                  Xl_all = 0.0;
-                  Xv_all = X_mol;
-                  return SinglePhase_V;
-              }
-              // Otherwise, fall through to normal two-phase logic
-          }
+          // Otherwise, fall through to normal two-phase logic
       }
+      
+      // ========================================================================
+      // STANDARD REGION DETECTION FOR HIGHER SALINITY
+      // ========================================================================
 
       // Three-Phase V+L+H
       if (X_mol > 0 && Pres_bar >= (P_vlh_bar - tol_P_LVH) && Pres_bar <= (P_vlh_bar + tol_P_LVH)) {

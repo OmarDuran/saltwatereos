@@ -5,7 +5,7 @@
 #include <limits>
 #include <numbers>
 #include<fstream>
-#include<string> 
+#include<string>
 #include<cmath>
 #include<vector>
 using namespace std;
@@ -29,28 +29,28 @@ using namespace std;
 #include "omp.h"
 #endif
 
-#define USE_PROST 1  
+#define USE_PROST 1
 
 #ifdef USE_PROST
     #include "steam4.h"
     #include "../src/PROST/iaps.h"
-#else 
-	#include "IAPWS-97.H"
-#endif 
+#else
+  #include "IAPWS-97.H"
+#endif
 
 namespace H2ONaCl
 {
     // ============= Constants of H2O-NaCl =======================================
-    double const PMIN = 5; /**< Minimum valid pressure of H2O-NaCl, [bar]. */ 
-    double const PMAX = 5000; /**< Maximum valid pressure of H2O-NaCl, [bar]. */ 
-    double const TMIN = 273.25; /**< Minimum valid pressure of H2O-NaCl, [K].  */ 
+    double const PMIN = 5; /**< Minimum valid pressure of H2O-NaCl, [bar]. */
+    double const PMAX = 5000; /**< Maximum valid pressure of H2O-NaCl, [bar]. */
+    double const TMIN = 273.25; /**< Minimum valid pressure of H2O-NaCl, [K].  */
     double const TMAX = 1273.15; /**< Maximum valid pressure of H2O-NaCl, [K]. */
-    double const TMIN_K = 273.25; /**< Minimum valid pressure of H2O-NaCl, [K].  */ 
-    double const TMAX_K = 1273.15; /**< Maximum valid pressure of H2O-NaCl, [K]. */ 
-    double const TMIN_C = 0.1; /**< Minimum valid temperature of H2O-NaCl, [C].  */ 
-    double const TMAX_C = 1000; /**< Maximum valid pressure of H2O-NaCl, [C]. */ 
-    double const XMIN = 0;  /**< Minimum valid salinity, [mol fraction].  */ 
-    double const XMAX = 1;  /**< Maximum valid salinity, [mol fraction].  */ 
+    double const TMIN_K = 273.25; /**< Minimum valid pressure of H2O-NaCl, [K].  */
+    double const TMAX_K = 1273.15; /**< Maximum valid pressure of H2O-NaCl, [K]. */
+    double const TMIN_C = 0.1; /**< Minimum valid temperature of H2O-NaCl, [C].  */
+    double const TMAX_C = 1000; /**< Maximum valid pressure of H2O-NaCl, [C]. */
+    double const XMIN = 0;  /**< Minimum valid salinity, [mol fraction].  */
+    double const XMAX = 1;  /**< Maximum valid salinity, [mol fraction].  */
     double const HMAX = 6E6; /**< Approximately maximum valid enthalpy, [J/kg]. It may be used to normize vtk output file data*/
     // ===========================================================================
     double const P_max_LVH  = 390.14744433796; /**< Maximum pressure of L+V+H region, [bar] */
@@ -77,7 +77,7 @@ namespace H2ONaCl
 
     /**
      * @brief Check the criterion of a property and determine if need to refine. Should use relative error criterion, rather absolute error otherwise it is not fair for vapor region.
-     * 
+     *
      */
     #define CHECK_REFINE_PROP_RMSD(PROP) \
     { \
@@ -94,10 +94,10 @@ namespace H2ONaCl
     }
 
     /**
-     * @brief EOS and thermodynamic properties of \f$H_2O-NaCl\f$ system. 
-     * 
-     * This implementation is based published references \cite Driesner2007Part1, \cite Driesner2007Part2 and \cite Klyukin2020. 
-     * 
+     * @brief EOS and thermodynamic properties of \f$H_2O-NaCl\f$ system.
+     *
+     * This implementation is based published references \cite Driesner2007Part1, \cite Driesner2007Part2 and \cite Klyukin2020.
+     *
      */
     class cH2ONaCl
     {
@@ -113,23 +113,53 @@ namespace H2ONaCl
         TABLE4 m_tab4_Driesner2007a; /**< Parameters for the critical curve Critical */
     private:
         void createTable4_Driesner2007a(TABLE4& table4);
+        
+        /**
+         * @brief Structure to hold supercritical region detection results for ultra-low salinity.
+         *
+         * This structure is used to determine if a given state is in the supercritical region
+         * and whether it behaves more like vapor or liquid based on IAPWS-95 critical properties.
+         */
+        struct SupercriticalRegionInfo {
+            bool isSupercritical;      ///< True if P > P_crit AND T > T_crit
+            bool isVaporLike;          ///< True if density < critical density (valid only if isSupercritical)
+            double density;            ///< Calculated density [kg/m³]
+            PhaseRegion recommendedRegion;  ///< Recommended phase region to use
+        };
+        
+        /**
+         * @brief Detect supercritical region behavior for ultra-low salinity using IAPWS-95.
+         *
+         * For ultra-low salinity (X_wt < 0.1%), this function determines if the state is
+         * supercritical and whether it should be treated as vapor-like or liquid-like
+         * based on comparison with IAPWS-95 critical density (322.0 kg/m³).
+         *
+         * @param T_c Temperature [°C]
+         * @param p_Pa Pressure [Pa]
+         * @param X_wt Bulk salinity [weight fraction]
+         * @param X_mol Bulk salinity [mole fraction of NaCl]
+         * @return SupercriticalRegionInfo Structure with detection results
+         */
+        SupercriticalRegionInfo detectSupercriticalRegion(const double T_c, const double p_Pa,
+                                                          const double X_wt, const double X_mol);
+        
         /**
          * @brief Find phase region when (T,P,X) is given.
-         * 
+         *
          * @param T Temperature [deg.C]
          * @param P Pressure [Pa]
          * @param X Bulk salinity [Mole fraction of NaCl]
          * @param Xl_all Salinity of liquid phase [mole fraction of NaCl]
          * @param Xv_all Salinity of vapor phase [mole fraction of NaCl]
-         * @return H2ONaCl::PhaseRegion 
+         * @return H2ONaCl::PhaseRegion
          */
         PhaseRegion findRegion(const double T, const double P, const double X, double& Xl_all, double& Xv_all);
         
-        void calcRho(int reg, double T_in, double P_in, double X_l, double X_v, double& Rho_l, double& Rho_v, double& Rho_h, 
+        void calcRho(int reg, double T_in, double P_in, double X_l, double X_v, double& Rho_l, double& Rho_v, double& Rho_h,
                         double& V_l_out, double& V_v_out, double& T_star_l_out, double& T_star_v_out, double& n1_v_out, double& n2_v_out);
         /**
          * @brief Calculate specific enthalpy.
-         * 
+         *
          * @param reg Phase region index, H2ONaCl::PhaseRegion
          * @param T_in Temperature [deg.C]
          * @param P_in Pressure [bar]
@@ -143,14 +173,14 @@ namespace H2ONaCl
             double& h_l, double& h_v, double& h_h);
         /**
          * @brief Calculate dynamic viscosity.
-         * 
+         *
          * @param reg Phase region index, H2ONaCl::PhaseRegion
          * @param P Pressure [Pa]
          * @param T Temperature [deg.C]
          * @param Xw_l \todo 搞清楚这里的盐度单位和黏度计算公式
-         * @param Xw_v 
-         * @param mu_l 
-         * @param mu_v 
+         * @param Xw_v
+         * @param mu_l
+         * @param mu_v
          */
         void calcViscosity(int reg, double P, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v);
         void calcViscosity_ph(int reg, double P, double H, double T, double Xw_l, double Xw_v, double& mu_l, double& mu_v);
@@ -175,21 +205,21 @@ namespace H2ONaCl
         H2ONaCl::PROP_H2ONaCl m_prop;
     // ========================== benchmark test have been done ====================
         /**
-         * @brief Critical curve of NaCl-H2O system. It can be evaluated into three segments, see equation (5) - (7) of reference \cite Driesner2007Part1. 
-         * 
-         * 
+         * @brief Critical curve of NaCl-H2O system. It can be evaluated into three segments, see equation (5) - (7) of reference \cite Driesner2007Part1.
+         *
+         *
          * @param T Input temperature, [\f$ ^{\circ}\text{C} \f$]
          * @param P_crit Output critical pressure, [bar]
          * @param X_crit Output critical salinity, [Mole fraction of NaCl]
-         * 
+         *
          */
         void P_X_Critical(double T, double& P_crit, double& X_crit);
         /**
          * @brief Array version.
-         * 
-         * @param T 
-         * @param P_crit 
-         * @param X_crit 
+         *
+         * @param T
+         * @param P_crit
+         * @param X_crit
          */
         void P_X_Critical(std::vector<double> T, std::vector<double>& P_crit, std::vector<double>& X_crit);
     // ==================================================================================================================
@@ -197,22 +227,22 @@ namespace H2ONaCl
         inline string getPhaseRegionName(PhaseRegion regionID){return m_phaseRegion_name[regionID];};
         /**
          * @brief Calculate thermal dynamic properties of NaCl-H2O system.
-         * 
+         *
          * @param p pressure [Pa]
          * @param T_K Temperature [K]
          * @param X_wt Salinity [mass fraction, [0,1]]
          * @param visc_on Calculate viscosity or not, default is true.
-         * @return H2ONaCl::PROP_H2ONaCl 
+         * @return H2ONaCl::PROP_H2ONaCl
          */
         H2ONaCl::PROP_H2ONaCl prop_pTX(double p, double T_K, double X_wt, bool visc_on=true);
        
         /**
          * @brief Calculate thermal dynamic properties of NaCl-H2O system.
-         * 
+         *
          * @param p pressure [Pa]
          * @param H specific enthalpy [J/kg]
          * @param X_wt Salinity [mass fraction, [0,1]]
-         * @return H2ONaCl::PROP_H2ONaCl 
+         * @return H2ONaCl::PROP_H2ONaCl
          */
         H2ONaCl::PROP_H2ONaCl prop_pHX(double p, double H, double X_wt);
         /**
@@ -228,14 +258,14 @@ namespace H2ONaCl
         H2ONaCl::PROP_H2ONaCl prop_pHX_bisection(double p, double H, double X_wt);
         /**
          * @brief Calculate bulk density.
-         * 
+         *
          * @param p [Pa]
          * @param T_K [K]
          * @param X_wt [mass fraction of NaCl]
          * @return double Density [kg/m3]
          */
-        double rho_pTX(double p_Pa, double T_K, double X_wt); 
-        double rho_l_pTX(double p_Pa, double T_K, double X_wt); 
+        double rho_pTX(double p_Pa, double T_K, double X_wt);
+        double rho_l_pTX(double p_Pa, double T_K, double X_wt);
         double mu_l_pTX(double p_Pa, double T_K, double X_wt);
         double mu_pTX(double p_Pa, double T_K, double X_wt);
         void writeProps2VTK(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::vector<H2ONaCl::PROP_H2ONaCl> props, std::string fname, bool isNormalize=true, std::string xTitle="x", std::string yTitle="y", std::string zTitle="z");
@@ -250,27 +280,27 @@ namespace H2ONaCl
         string CheckRanges_H_P(double HMIN0, double HMAX0, double Prange[2], double X0);
         /**
          * @brief Check valid ranges of enthalpy given salinity
-         * 
-         * @param HMIN0 
-         * @param HMAX0 
-         * @param Xrange 
-         * @param P0 
-         * @return string 
+         *
+         * @param HMIN0
+         * @param HMAX0
+         * @param Xrange
+         * @param P0
+         * @return string
          */
         string CheckRanges_H_X(double HMIN0, double HMAX0, double Xrange[2], double P0);
 
         /**
          * @brief Calculate critical T given P
-         * 
+         *
          * @param P Input pressure, [bar]
          * @param T_crit Output critical temperature, [\f$ ^{\circ}\text{C} \f$]
          * @param X_crit Output critical salinity, [Mole fraction of NaCl]
-         * @return double 
+         * @return double
          */
         void T_X_Critical(double P, double& T_crit, double& X_crit);
         /**
          * @brief Calculate critical curve of \f$H_2O-NaCl \f$ system in the whole valid region, and then write as to file in format of VTK or dat.
-         * 
+         *
          * @param filename File name without extension, default filename is "CriticalCurve", i.e. the default output path is the current path.
          * @param Tmin Minimum temperature (in unit of \f$ ^{\circ}C\f$) of temperature for critical curve, default is TMIN_C.
          * @param Tmax Maximum temperature (in unit of \f$ ^{\circ}C\f$) of temperature for critical curve, default is TMIN_C.
@@ -283,7 +313,7 @@ namespace H2ONaCl
         void writeH2OBoilingCurve(string filename="BoilingCurve_H2O",double Tmin=TMIN_C, double Tmax=H2O::T_Critic, H2ONaCl::fmtOutPutFile fmt=H2ONaCl::fmt_vtk, int nT=100);
         /**
          * @brief The composition of halite-saturated liquid, \f$ X_{NaCl, sat}^L \f$ (the halite liquidus), is rather well known at high temperatures from about 400 \f$^{\circ}C \f$ to the melting curve of NaCl at pressures to about 4000 bar. See equation (8) of reference \cite Driesner2007Part1.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @return double Salinity [Mole fraction of NaCl]
@@ -292,20 +322,20 @@ namespace H2ONaCl
         std::vector<double> X_HaliteLiquidus(std::vector<double> T, std::vector<double> P);
         /**
          * @brief Write halite liquidus surface as vtk file format
-         * 
-         * @param filename 
+         *
+         * @param filename
          * @param Tmin [C]
          * @param Tmax [C]
 
          * @param Pmax [bar]
-         * @param fmt 
-         * @param nT 
-         * @param nP 
+         * @param fmt
+         * @param nT
+         * @param nP
          */
         void writeHaliteLiquidusSurface(string filename="HaliteLiquidus",double Tmin=TMIN_C, double Tmax=NaCl::T_Triple, double Pmax=PMAX, H2ONaCl::fmtOutPutFile fmt=H2ONaCl::fmt_vtk, int nT=100, int nP=200);
         /**
          * @brief Composition of halite-saturated vapor. See equation (9) and (14) of reference \cite Driesner2007Part1.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @return double Salinity [Mole fraction of NaCl]
@@ -313,38 +343,38 @@ namespace H2ONaCl
         double X_VaporHaliteCoexist(double T, double P);
         /**
          * @brief Temperature-pressure relations when vapor-liquid-halite coexist. See equation (10) and Table 6 of reference \cite Driesner2007Part1.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @return double Pressure [bar]
          */
         double P_VaporLiquidHaliteCoexist(double T);
         /**
          * @brief Get halite and salinity of V+L+H boundary surface.
-         * 
+         *
          * Of course this is only valid for pressure in range of [H2ONaCl::PMIN, H2ONaCl::cH2ONaCl::Pmax_VaporLiquidHaliteCoexist (~390.147 bar)]
-         * 
+         *
          * @param P Pressure [bar]
          * @return  std::vector<double> [Hmin, Hmax, Xmin(wt), Xmax(wt)] with four components, or empty for invalid P
          */
         std::vector<double> HX_VaporLiquidHaliteCoexist(double P);
         /**
          * @brief Get maximum pressure and corresponding temperature of V+L+H surface
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
-         * @return  
+         * @return
          */
         void Pmax_VaporLiquidHaliteCoexist(double& T, double& P);
         /**
          * @brief Solve temperature of vapor-liquid-halite coexist boundary when given P
-         * 
+         *
          * @param P Pressure [bar]
          * @return double Temperature [\f$ ^{\circ}\text{C} \f$]
          */
         std::vector<double> T_VaporLiquidHaliteCoexist(double P);
         /**
          * @brief Write vapor+Liquid+Halite coexist surface
-         * 
+         *
          * @param Tmin [C]
          * @param Tmax [C]
          * @param dT [C]
@@ -352,7 +382,7 @@ namespace H2ONaCl
         void writeVaporLiquidHaliteCoexistSurface(string filename="VaporLiquidHalite", double Tmin=TMIN_C, double Tmax=NaCl::T_Triple, double dT=1, H2ONaCl::fmtOutPutFile fmt=H2ONaCl::fmt_vtk);
         /**
          * @brief Salinity on liquid branch of Vapor + Liquid coexist surface. See equation (11) and Table 7 of reference \cite Driesner2007Part1.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @return double Salinity [Mole fraction of NaCl]
@@ -361,7 +391,7 @@ namespace H2ONaCl
         std::vector<double> X_VaporLiquidCoexistSurface_LiquidBranch(std::vector<double> T, std::vector<double> P);
         /**
          * @brief Salinity on vapor branch of Vapor + Liquid coexist surface. See equation (13-17) and Table 8 of reference \cite Driesner2007Part1.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @return double Salinity [Mole fraction of NaCl]
@@ -369,11 +399,11 @@ namespace H2ONaCl
         double X_VaporLiquidCoexistSurface_VaporBranch(double T, double P);
         std::vector<double> X_VaporLiquidCoexistSurface_VaporBranch(std::vector<double> T, std::vector<double> P);
 
-        void writeVaporLiquidCoexistSurface(string filename="VaporLiquid", double Tmin=TMIN_C, double Tmax=TMAX_C, H2ONaCl::fmtOutPutFile fmt=H2ONaCl::fmt_vtk, int nT=100, int nP=100); 
+        void writeVaporLiquidCoexistSurface(string filename="VaporLiquid", double Tmin=TMIN_C, double Tmax=TMAX_C, H2ONaCl::fmtOutPutFile fmt=H2ONaCl::fmt_vtk, int nT=100, int nP=100);
         void T_star_V_n1n2(double P, double X, double& n1, double& n2);
         /**
          * @brief \f$ T_V^* \f$ is used to determin the correction between NaCl-H2O and H2O. For a given molar volume, NaCl solution and pure water temperature are \f$ T \f$ and \f$ T_V^* \f$, respectively. The principle is shown in Fig.2 (below) of reference \cite Driesner2007Part2. \f$ T_V^* \f$ is calculated from equation (8, 13) of \cite Driesner2007Part2.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @param X Salinity [Mole fraction of NaCl]
@@ -382,17 +412,17 @@ namespace H2ONaCl
         double T_star_V(double T, double P, double X);
         /**
          * @brief Extrapolated molar volume outside range of correlation. See equation (17) of reference \cite Driesner2007Part2.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @param X Salinity [Mole fraction of NaCl]
-         * @return double \f$ V_{extrapol} \f$ [\f$cm^3\ mol^{-1} \f$] 
+         * @return double \f$ V_{extrapol} \f$ [\f$cm^3\ mol^{-1} \f$]
          */
         double V_extrapol(double T, double P, double X);
 
         /**
-         * @brief Convert mass fraction of NaCl to molar fraction. 
-         * 
+         * @brief Convert mass fraction of NaCl to molar fraction.
+         *
          * @param X_wt [0,1]
          * @return double [0,1]
          */
@@ -402,7 +432,7 @@ namespace H2ONaCl
         };
         /**
          * @brief Convert molar fraction of NaCl to mass fraction.
-         * 
+         *
          * @param X_mol [0,1]
          * @return double [0,1]
          */
@@ -420,7 +450,7 @@ namespace H2ONaCl
         };
         /**
          * @brief Only used in #V_extrapol
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @param X Salinity [Mole fraction of NaCl]
@@ -429,7 +459,7 @@ namespace H2ONaCl
         double Rho_Br_for_V_extrapol(double T, double P, double X);
         /**
          * @brief Density of brine.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @param X Salinity [Mole fraction of NaCl]
@@ -439,28 +469,28 @@ namespace H2ONaCl
 
         /**
          * @brief Find phase region for giving T, P and X.
-         * 
+         *
          * @param T Temperature [\f$ ^{\circ}\text{C} \f$]
          * @param P Pressure [bar]
          * @param X_wt Salinity [Mass fraction of NaCl]
          * @param Xl_all Salinity of liquid phase [mole fraction of NaCl]
          * @param Xv_all Salinity of vapor phase [mole fraction of NaCl]
-         * @return H2ONaCl::PhaseRegion 
+         * @return H2ONaCl::PhaseRegion
          */
         PhaseRegion findPhaseRegion(const double T_c, const double P_bar, const double X_wt, double& Xl_all, double& Xv_all);
         PhaseRegion findPhaseRegion(const double T_c, const double P_bar, const double X_wt);
         /**
          * @brief This function has the same variable order and unit as prop_pTX.
-         * 
+         *
          * @param p_Pa
-         * @param T_K 
-         * @param X_wt 
-         * @return PhaseRegion 
+         * @param T_K
+         * @param X_wt
+         * @return PhaseRegion
          */
         PhaseRegion findPhaseRegion_pTX(double p_Pa, double T_K, double X_wt);
         /**
          * @brief Write VLH phase boundary surface in PHX space to VTU file
-         * 
+         *
          * @param scale_X scale of X, default is 1
          * @param scale_H scale of H, default is 1.0/H2ONaCl::cH2ONaCl::HMAX
          * @param scale_P scale of P, default is 1.0/H2ONaCl::cH2ONaCl::PMAX
@@ -490,11 +520,11 @@ namespace H2ONaCl
         void parse_update_which_props(int update_which_props);
         /**
          * @brief Create a LUT 2D object in PTX space. Create different 2D LUT according to type and  xy limits, then access through member variable m_lut_PTX_2D
-         * 
-         * @param type 
-         * @param xy_min 
-         * @param xy_max 
-         * @param z 
+         *
+         * @param type
+         * @param xy_min
+         * @param xy_max
+         * @param z
          */
         void createLUT_2D(double xy_min[2], double xy_max[2], double constZ, LOOKUPTABLE_FOREST::CONST_WHICH_VAR const_which_var, LOOKUPTABLE_FOREST::EOS_ENERGY TorH, int min_level = 4, int max_level = 6, int update_which_props=0);
         void createLUT_2D(double xmin, double xmax, double ymin, double ymax, double constZ, LOOKUPTABLE_FOREST::CONST_WHICH_VAR const_which_var, LOOKUPTABLE_FOREST::EOS_ENERGY TorH, int min_level = 4, int max_level = 6, int update_which_props=0);
@@ -538,19 +568,19 @@ namespace H2ONaCl
     private:
         /**
          * @brief Write array of X,Y,Z to VTU (Serial vtkUnstructuredGrid) file as a 3D line.
-         * 
-         * @param filename 
-         * @param X 
-         * @param Y 
-         * @param Z 
-         * @return void 
+         *
+         * @param filename
+         * @param X
+         * @param Y
+         * @param Z
+         * @return void
          */
         void writeVTK_PolyLine(string filename,vector<double> X, vector<double> Y, vector<double> Z);
         void writeVTK_Triangle_Strip(string filename, vector<vector<double> > X, vector<vector<double> > Y, vector<vector<double> > Z, double scale_X=1.0, double scale_Y=1.0, double scale_Z=1.0);
         /**
          * @brief (X[i,:], Y[i,:], Z[i,:]) describe a polygon plane. ([X[i:i+1,j], X[i:i+1, j+1]]) construct a VTK_QUAD in the normal direction of polygon plane.
-         * 
-         * @param filename 
+         *
+         * @param filename
          * @param X N X M 2D array, M is the node number of each polygon, N is layers number.
          * @param Y N X M 2D array
          * @param Z N X M 2D array

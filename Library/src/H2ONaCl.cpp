@@ -1116,6 +1116,35 @@ namespace H2ONaCl
         // 5. SATURATION (VOLUME FRACTION) via LEVER RULE
         if (prop.Region == SinglePhase_L) {
             prop.S_l = 1.0;
+            
+            // For ultra-low salinity in supercritical region, distinguish vapor-like from liquid-like
+            // based on density comparison with IAPWS-95 critical density
+            if (X_wt < 0.001) {  // Ultra-low salinity (< 0.1 wt%)
+                double T_crit_H2O = 373.946;  // °C (IAPWS-95)
+                double P_crit_H2O_Pa = 22.064e6;  // Pa (IAPWS-95)
+                double Rho_crit_H2O = 322.0;  // kg/m³ (IAPWS-95 critical density)
+                
+                // Check if we're in supercritical region
+                if (p_Pa > P_crit_H2O_Pa && T_c > T_crit_H2O) {
+                    // In supercritical region: distinguish vapor-like from liquid-like
+                    // Vapor-like: density < critical density (S_v = 1.0, S_l = 0.0)
+                    // Liquid-like: density > critical density (S_l = 1.0, S_v = 0.0)
+                    
+                    if (prop.Rho_l < Rho_crit_H2O) {
+                        // Vapor-like supercritical state
+                        prop.S_v = 1.0;
+                        prop.S_l = 0.0;
+                        // For continuity, we should swap liquid and vapor properties
+                        // so that the bulk properties use the vapor-like values
+                        std::swap(prop.Rho_l, prop.Rho_v);
+                        std::swap(prop.H_l, prop.H_v);
+                        std::swap(prop.X_l, prop.X_v);
+                        // Update region to indicate this is vapor-like
+                        prop.Region = SinglePhase_V;
+                    }
+                    // else: liquid-like supercritical state, keep S_l = 1.0, S_v = 0.0
+                }
+            }
         }
         else if (prop.Region == SinglePhase_V) {
             prop.S_v = 1.0;
@@ -1369,6 +1398,8 @@ namespace H2ONaCl
           
           // Supercritical region
           if (Pres_bar > P_crit_H2O_bar && T > T_crit_H2O) {
+              // In the supercritical region for pure water, we return SinglePhase_L
+              // but the caller (prop_pTX) will need to determine if it's vapor-like or liquid-like
               Xl_all = 0.0;
               Xv_all = 0.0;
               return SinglePhase_L;  // Supercritical (use liquid formulation)
@@ -1412,6 +1443,8 @@ namespace H2ONaCl
           double P_crit_H2O_bar = 220.64;  // bar (IAPWS-95)
           
           // Supercritical region: P > P_crit and T > T_crit
+          // For ultra-low salinity in supercritical region, return SinglePhase_L
+          // and let prop_pTX distinguish vapor-like from liquid-like
           if (Pres_bar > P_crit_H2O_bar && T > T_crit_H2O) {
               Xl_all = X_mol;
               Xv_all = X_mol;

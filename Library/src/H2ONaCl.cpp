@@ -1418,20 +1418,31 @@ namespace H2ONaCl
               return SinglePhase_L;  // Supercritical single phase
           }
           
-          // Determine if we're in single-phase liquid or vapor region based on IAPWS
-          // by comparing pressure to saturation pressure
-          if (Pres_bar > Psat_H2O_bar * (1.0 + 0.1 * X_wt_approx / 0.001)) {
-              // Well above saturation: single phase liquid
-              Xl_all = X_mol;
-              Xv_all = 0.0;
-              return SinglePhase_L;
-          } else if (Pres_bar < Psat_H2O_bar * (1.0 - 0.1 * X_wt_approx / 0.001)) {
-              // Well below saturation: single phase vapor
+          // Above critical temperature but subcritical pressure: always vapor
+          if (T > T_crit_H2O && Pres_bar < P_crit_H2O_bar) {
               Xl_all = 0.0;
               Xv_all = X_mol;
-              return SinglePhase_V;
+              return SinglePhase_V;  // Superheated steam (always vapor above T_crit at low P)
           }
-          // Otherwise, fall through to normal two-phase logic
+          
+          // Subcritical conditions: compare with saturation pressure
+          if (T < T_crit_H2O) {
+              // Use saturation pressure comparison with tolerance based on salinity
+              double P_margin = Psat_H2O_bar * 0.1 * X_wt_approx / 0.001;  // Proportional margin
+              
+              if (Pres_bar > Psat_H2O_bar + P_margin) {
+                  // Well above saturation: single phase liquid
+                  Xl_all = X_mol;
+                  Xv_all = 0.0;
+                  return SinglePhase_L;
+              } else if (Pres_bar < Psat_H2O_bar - P_margin) {
+                  // Well below saturation: single phase vapor
+                  Xl_all = 0.0;
+                  Xv_all = X_mol;
+                  return SinglePhase_V;
+              }
+              // Otherwise, fall through to normal two-phase logic
+          }
       }
 
       // Three-Phase V+L+H

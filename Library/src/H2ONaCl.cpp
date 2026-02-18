@@ -508,48 +508,73 @@ namespace H2ONaCl
             PROP_mid = prop_pTX(p, T_mid + Kelvin, X_wt, false);
 
             // Special handling for plateau regions (Pure water or VLH)
-            if (PROP_mid.Region == TwoPhase_L_V_X0 || PROP_mid.Region == ThreePhase_V_L_H) {
-                // In these regions, T is constant for a range of H.
-                // We use calc_sat_lvh or pure saturation logic to find the local H.
-                if (PROP_mid.Region == ThreePhase_V_L_H) {
-                    calc_sat_lvh(PROP_mid, H, X_wt, false);
-                    // Calculate mixture enthalpy from phase properties
-                    PROP_mid.H = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l +
-                                  PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v +
-                                  PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
-                    
-                    // Handle negative saturations - recalculate based on salinity balance
-                    if(PROP_mid.S_l < 0) // calc S_h and S_v
-                    {
-                        PROP_mid.S_h = (PROP_mid.Rho_v * (PROP_mid.X_v - X_wt))/(PROP_mid.Rho_h * (X_wt-1) + PROP_mid.Rho_v * (PROP_mid.X_v - X_wt));
-                        PROP_mid.S_v = 1 - PROP_mid.S_h;
-                        PROP_mid.Rho = PROP_mid.S_v * PROP_mid.Rho_v + PROP_mid.S_h * PROP_mid.Rho_h;
-                        PROP_mid.H   = (PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
-                    }
-                    if(PROP_mid.S_v < 0) // calc S_h and S_l
-                    {
-                        PROP_mid.S_h = (PROP_mid.Rho_l*(PROP_mid.X_l-X_wt))/(PROP_mid.Rho_h*(X_wt-1) + PROP_mid.Rho_l*(PROP_mid.X_l-X_wt));
-                        PROP_mid.S_l = 1 - PROP_mid.S_h;
-                        PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_h * PROP_mid.Rho_h;
-                        PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
-                    }
-                    if(PROP_mid.S_h < 0) // calc S_l and S_v
-                    {
-                        PROP_mid.S_l = (PROP_mid.Rho_v*(PROP_mid.X_v - X_wt))/(PROP_mid.Rho_v*(PROP_mid.X_v-X_wt)+ PROP_mid.Rho_l*(X_wt-PROP_mid.X_l));
-                        PROP_mid.S_v = 1 - PROP_mid.S_l;
-                        PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_v * PROP_mid.Rho_v;
-                        PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v) / PROP_mid.Rho;
-                    }
-                } else {
-                    // Pure Water Saturation Logic
-                    double T_sat, rl, hl, hv, d1, d2, rv, m1, m2;
-                    fluidProp_crit_P(p, 1e-10, T_sat, rl, hl, hv, d1, d2, rv, m1, m2);
-                    double quality = (H - hl) / (hv - hl);
-                    quality = std::max(0.0, std::min(1.0, quality));
-                    double rho_pure = 1.0 / (quality/rv + (1.0 - quality)/rl);
-                    PROP_mid.H = H;
-                    PROP_mid.Rho = rho_pure;
-                    PROP_mid.T = T_sat;
+            // Only apply this for actual two-phase regions, not single phase
+            if (PROP_mid.Region == ThreePhase_V_L_H) {
+                calc_sat_lvh(PROP_mid, H, X_wt, false);
+                // Calculate mixture enthalpy from phase properties
+                PROP_mid.H = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l +
+                              PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v +
+                              PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                
+                // Handle negative saturations - recalculate based on salinity balance
+                if(PROP_mid.S_l < 0) // calc S_h and S_v
+                {
+                    PROP_mid.S_h = (PROP_mid.Rho_v * (PROP_mid.X_v - X_wt))/(PROP_mid.Rho_h * (X_wt-1) + PROP_mid.Rho_v * (PROP_mid.X_v - X_wt));
+                    PROP_mid.S_v = 1 - PROP_mid.S_h;
+                    PROP_mid.Rho = PROP_mid.S_v * PROP_mid.Rho_v + PROP_mid.S_h * PROP_mid.Rho_h;
+                    PROP_mid.H   = (PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                }
+                if(PROP_mid.S_v < 0) // calc S_h and S_l
+                {
+                    PROP_mid.S_h = (PROP_mid.Rho_l*(PROP_mid.X_l-X_wt))/(PROP_mid.Rho_h*(X_wt-1) + PROP_mid.Rho_l*(PROP_mid.X_l-X_wt));
+                    PROP_mid.S_l = 1 - PROP_mid.S_h;
+                    PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_h * PROP_mid.Rho_h;
+                    PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_h * PROP_mid.Rho_h * PROP_mid.H_h) / PROP_mid.Rho;
+                }
+                if(PROP_mid.S_h < 0) // calc S_l and S_v
+                {
+                    PROP_mid.S_l = (PROP_mid.Rho_v*(PROP_mid.X_v - X_wt))/(PROP_mid.Rho_v*(PROP_mid.X_v-X_wt)+ PROP_mid.Rho_l*(X_wt-PROP_mid.X_l));
+                    PROP_mid.S_v = 1 - PROP_mid.S_l;
+                    PROP_mid.Rho = PROP_mid.S_l * PROP_mid.Rho_l + PROP_mid.S_v * PROP_mid.Rho_v;
+                    PROP_mid.H   = (PROP_mid.S_l * PROP_mid.Rho_l * PROP_mid.H_l + PROP_mid.S_v * PROP_mid.Rho_v * PROP_mid.H_v) / PROP_mid.Rho;
+                }
+            } else if (PROP_mid.Region == TwoPhase_L_V_X0) {
+                // Pure Water Saturation Logic (TwoPhase_L_V_X0)
+                // This is a switch statement case from original prop_pHX
+                double T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0;
+                fluidProp_crit_P(p, 1e-12, T_crit, Rho_l, h_l, h_v, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
+                double S_l = (Rho_v*(h_v - H))/(Rho_v*(h_v-H) + Rho_l*(H-h_l));
+                double S_v = 1 - S_l;
+                double Rho = S_l * Rho_l + S_v * Rho_v;
+                
+                PROP_mid.T = T_crit;
+                PROP_mid.H = H;
+                PROP_mid.Rho = Rho;
+                PROP_mid.Rho_l = Rho_l;
+                PROP_mid.Rho_v = Rho_v;
+                PROP_mid.H_l = h_l;
+                PROP_mid.H_v = h_v;
+                PROP_mid.S_l = S_l;
+                PROP_mid.S_v = S_v;
+                
+                // Handle out-of-range quality - transition to single phase
+                if(S_l > 1)
+                {
+                    PROP_mid.H = h_l;
+                    PROP_mid.S_l = 1;
+                    PROP_mid.S_v = 0;
+                    PROP_mid.Region = SinglePhase_L;
+                    PROP_mid.H_v = 0;
+                    PROP_mid.Rho_v = 0;
+                }
+                if(S_l < 0)
+                {
+                    PROP_mid.H = h_v;
+                    PROP_mid.S_l = 0;
+                    PROP_mid.S_v = 1;
+                    PROP_mid.Region = SinglePhase_V;
+                    PROP_mid.H_l = 0;
+                    PROP_mid.Rho_l = 0;
                 }
             }
             

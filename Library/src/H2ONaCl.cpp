@@ -2766,8 +2766,6 @@ namespace H2ONaCl
             bool is_two_phase = (reg == TwoPhase_L_V_X0 || reg == TwoPhase_V_H ||
                                 reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
             
-            bool debug_visc = (P > 98.5e5 && P < 99.5e5);
-            
             if (is_two_phase) {
                 // In two-phase, vapor is at saturation - get Tsat for this pressure
                 // Use PROST library to get saturation properties
@@ -2785,25 +2783,10 @@ namespace H2ONaCl
                     T_sat_K = freesteam_region4_Tsat_p(P);
                 #endif
                 
-                if(debug_visc) {
-                    std::cerr << "[DEBUG calcViscosity] P=" << (P/1e5) << " bar, T=" << T
-                              << " C, reg=" << reg << ", is_two_phase=TRUE" << std::endl;
-                    std::cerr << "[DEBUG] T_sat=" << (T_sat_K-273.15) << " C, calling water_mu_pT with T_sat+5="
-                              << (T_sat_K+5.0-273.15) << " C" << std::endl;
-                }
-                
-                // Vapor at saturation (use larger superheat to ensure proper vapor properties)
-                // Near saturation, viscosity changes rapidly, so use +5K for stable vapor viscosity
+                // Vapor at saturation (use superheat to ensure proper vapor properties)
+                // +5K superheat gives stable, well-defined vapor viscosity
                 mu_v = water_mu_pT(P, T_sat_K + 5.0);
-                
-                if(debug_visc) {
-                    std::cerr << "[DEBUG] Returned mu_v=" << mu_v << std::endl;
-                }
             } else {
-                if(debug_visc) {
-                    std::cerr << "[DEBUG calcViscosity] P=" << (P/1e5) << " bar, T=" << T
-                              << " C, reg=" << reg << ", is_two_phase=FALSE" << std::endl;
-                }
                 // Single phase vapor - use actual temperature
                 mu_v = water_mu_pT(P, T + Kelvin);
             }
@@ -2926,76 +2909,48 @@ namespace H2ONaCl
             double dt = 0.5;  // Increased from 1.0e-5 to 0.5 K for robustness near saturation
             Prop *prop0 = newProp('t', 'p', 1);
             
-            // DEBUG: Print when called
-            bool debug_mode = (p > 98.5e5 && p < 99.5e5 && T_K > 580.0 && T_K < 592.0);
-            if(debug_mode) {
-                std::cerr << "[DEBUG water_mu_pT] P=" << (p/1e5) << " bar, T_K=" << T_K
-                          << " K (" << (T_K-273.15) << " C)" << std::endl;
-            }
-            
             // 1. Initial attempt
             water_tp(T_K, p, d, dp, prop0);
             double mu = viscos(prop0);
-            
-            if(debug_mode) {
-                std::cerr << "[DEBUG] Initial mu=" << mu << std::endl;
-            }
 
             // 2. If it fails (NaN) or returns 0, we are likely in or near the 2-phase dome
             if (std::isnan(mu) || mu <= 0)
             {
-                if(debug_mode) std::cerr << "[DEBUG] Triggered fallback (mu was NaN or <=0)" << std::endl;
-                
                 Prop *propl = newProp('t', 'p', 1);
                 Prop *propv = newProp('t', 'p', 1);
                 
                 // Find the saturation boundaries for this pressure
                 sat_p(p, propl, propv);
                 double Tsat = propl->T;
-                
-                if(debug_mode) {
-                    std::cerr << "[DEBUG] Tsat=" << Tsat << " K (" << (Tsat-273.15) << " C)" << std::endl;
-                    std::cerr << "[DEBUG] T_K > Tsat - dt? " << (T_K >= Tsat) << " (dt=" << dt << ")" << std::endl;
-                }
 
                 // Use a more robust approach: shift further from saturation line
                 // to ensure we're fully in single-phase region
                 if (T_K >= Tsat) {
                     // VAPOR SIDE or at saturation:
-                    if(debug_mode) std::cerr << "[DEBUG] Using VAPOR side logic" << std::endl;
-                    
                     // Shift temperature UP by at least 1.0 K to get into superheated region
                     double T_force = std::max(T_K + 0.5, Tsat + dt);
                     water_tp(T_force, p, d, dp, propv);
                     mu = viscos(propv);
-                    
-                    if(debug_mode) std::cerr << "[DEBUG] After vapor shift (T_force=" << T_force << "): mu=" << mu << std::endl;
                     
                     // If still NaN, try shifting even more
                     if (std::isnan(mu) || mu <= 0) {
                         T_force = Tsat + 2.0;  // Shift 2 K above saturation
                         water_tp(T_force, p, d, dp, propv);
                         mu = viscos(propv);
-                        if(debug_mode) std::cerr << "[DEBUG] After 2nd vapor shift (T_force=" << T_force << "): mu=" << mu << std::endl;
                     }
                 }
                 else {
                     // LIQUID SIDE:
-                    if(debug_mode) std::cerr << "[DEBUG] Using LIQUID side logic" << std::endl;
-                    
                     // Shift temperature DOWN by at least 1.0 K
                     double T_force = std::min(T_K - 0.5, Tsat - dt);
                     water_tp(T_force, p, d, dp, propl);
                     mu = viscos(propl);
-                    
-                    if(debug_mode) std::cerr << "[DEBUG] After liquid shift (T_force=" << T_force << "): mu=" << mu << std::endl;
                     
                     // If still NaN, try shifting even more
                     if (std::isnan(mu) || mu <= 0) {
                         T_force = Tsat - 2.0;  // Shift 2 K below saturation
                         water_tp(T_force, p, d, dp, propl);
                         mu = viscos(propl);
-                        if(debug_mode) std::cerr << "[DEBUG] After 2nd liquid shift (T_force=" << T_force << "): mu=" << mu << std::endl;
                     }
                 }
                 
@@ -3009,7 +2964,6 @@ namespace H2ONaCl
             // Final safety check: if still NaN, return a reasonable default
             // This should never happen with the above logic, but prevents crashes
             if (std::isnan(mu) || mu <= 0) {
-                if(debug_mode) std::cerr << "[DEBUG] FINAL FALLBACK triggered!" << std::endl;
                 // Use approximate correlation as last resort
                 // For water vapor at moderate conditions: mu ~ 1-3 e-5 Pa·s
                 // For water liquid: mu ~ 1-10 e-4 Pa·s
@@ -3017,15 +2971,9 @@ namespace H2ONaCl
                 double T_crit = 647.096;  // K
                 if (T_K > 0.7 * T_crit) {
                     mu = 2.0e-5;  // Typical vapor viscosity
-                    if(debug_mode) std::cerr << "[DEBUG] Set to vapor default: 2.0e-5" << std::endl;
                 } else {
                     mu = 1.0e-4;  // Typical liquid viscosity
-                    if(debug_mode) std::cerr << "[DEBUG] Set to liquid default: 1.0e-4" << std::endl;
                 }
-            }
-            
-            if(debug_mode) {
-                std::cerr << "[DEBUG] FINAL mu=" << mu << std::endl << std::endl;
             }
             
             return mu;

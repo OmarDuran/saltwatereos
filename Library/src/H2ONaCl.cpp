@@ -2760,14 +2760,20 @@ namespace H2ONaCl
 
         if (ind_v) {
             // Vapor viscosity in H2O-NaCl systems is dominated by the H2O steam properties.
-            // CRITICAL FIX: In two-phase regions, vapor is at saturation temperature, NOT bulk T
-            // The bulk T might be liquid-side temperature, which would give wrong viscosity
             
-            bool is_two_phase = (reg == TwoPhase_L_V_X0 || reg == TwoPhase_V_H ||
-                                reg == ThreePhase_V_L_H || reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+            // Critical pressure for pure water: 220.64 bar
+            const double P_critical = 220.64e5;  // Pa
             
-            if (is_two_phase) {
-                // In two-phase, vapor is at saturation - get Tsat for this pressure
+            // Check if we're in subcritical two-phase or supercritical single-phase
+            bool is_subcritical_twophase = (P < P_critical) &&
+                                           (reg == TwoPhase_L_V_X0 || reg == ThreePhase_V_L_H ||
+                                            reg == TwoPhase_V_L_L || reg == TwoPhase_V_L_V);
+            
+            // Region 4 (TwoPhase_V_H) is supercritical vapor + halite - treat as single phase vapor
+            bool is_supercritical_or_single = (P >= P_critical) || (reg == SinglePhase_V) || (reg == TwoPhase_V_H);
+            
+            if (is_subcritical_twophase) {
+                // Subcritical two-phase: vapor is at saturation temperature
                 // Use PROST library to get saturation properties
                 double T_sat_K = 273.15;  // Default
                 
@@ -2787,7 +2793,8 @@ namespace H2ONaCl
                 // +5K superheat gives stable, well-defined vapor viscosity
                 mu_v = water_mu_pT(P, T_sat_K + 5.0);
             } else {
-                // Single phase vapor - use actual temperature
+                // Supercritical or single-phase vapor: use actual temperature
+                // This includes Region 4 (TwoPhase_V_H) which is supercritical vapor + halite
                 mu_v = water_mu_pT(P, T + Kelvin);
             }
         }

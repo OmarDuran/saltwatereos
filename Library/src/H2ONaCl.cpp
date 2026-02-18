@@ -3089,12 +3089,12 @@ namespace H2ONaCl
         //now the Hmin is calculated from PTX, it is close to the exact H
         Hmin = max(m_prop.H - 0.5E6, 0.1E6); // move down e.g. 0.2E6, and then move up and check phase changes
         // for this point, from low H to high H, phase changes from L or LH to LVH
-        m_prop = prop_pHX(P_Pa, Hmin, Xmin);
+        m_prop = prop_pHX_bisection(P_Pa, Hmin, Xmin);
         int iter = 0;
         while (m_prop.Region!=ThreePhase_V_L_H) //find exact Hmin in PHX space
         {
             Hmin += dH;
-            m_prop = prop_pHX(P_Pa, Hmin, Xmin);
+            m_prop = prop_pHX_bisection(P_Pa, Hmin, Xmin);
             // cout<<iter<<" Hmin: "<<Hmin<<" Xmin: "<<Xmin<<m_phaseRegion_name[m_prop.Region]<<endl;
             iter++;
             if(iter>100)return HminHmaxXminXmax;
@@ -3105,12 +3105,12 @@ namespace H2ONaCl
         m_prop = prop_pTX(P_Pa, Tmax+Kelvin, Xmax);
         Hmax = m_prop.H + 0.5E6; // move down e.g. 0.2E6, and then move up and check phase changes
         // for this point, from low H to high H, phase changes from L or LH to LVH
-        m_prop = prop_pHX(P_Pa, Hmax, Xmax);
+        m_prop = prop_pHX_bisection(P_Pa, Hmax, Xmax);
         iter = 0;
         while (m_prop.Region!=ThreePhase_V_L_H) //find exact Hmin in PHX space
         {
             Hmax -= dH;
-            m_prop = prop_pHX(P_Pa, Hmax, Xmax);
+            m_prop = prop_pHX_bisection(P_Pa, Hmax, Xmax);
             // cout<<iter<<" Hmax: "<<Hmax<<" Xmax: "<<Xmax<<" "<<m_phaseRegion_name[m_prop.Region]<<endl;
             iter++;
             if(iter>100)return HminHmaxXminXmax;
@@ -3964,7 +3964,7 @@ namespace H2ONaCl
                 std::vector<double> vecP_LH_part2(nT+1,P0), vecH_LH_part2(nT+1), vecX_LH_part2(nT+1);
                 // for P=P0, the VLH region in salinity-enthalpy space is a triangle
                 // part 1
-                H2ONaCl::PROP_H2ONaCl prop1 = prop_pHX(P0_Pa, HminHmaxXminXmax[0], HminHmaxXminXmax[2]);
+                H2ONaCl::PROP_H2ONaCl prop1 = prop_pHX_bisection(P0_Pa, HminHmaxXminXmax[0], HminHmaxXminXmax[2]);
                 vecH_part1[0] = prop1.H_v;
                 vecH_part1[1] = prop1.H_l;
                 vecH_part1[2] = prop1.H_h;
@@ -4059,7 +4059,7 @@ namespace H2ONaCl
                 vec2P_L_part1.push_back(vecP_L_part1);
 
                 // part 2
-                H2ONaCl::PROP_H2ONaCl prop2 = prop_pHX(P0_Pa, HminHmaxXminXmax[1], HminHmaxXminXmax[3]);
+                H2ONaCl::PROP_H2ONaCl prop2 = prop_pHX_bisection(P0_Pa, HminHmaxXminXmax[1], HminHmaxXminXmax[3]);
                 vecH_part2[0] = prop2.H_v;
                 vecH_part2[1] = prop2.H_l;
                 vecH_part2[2] = prop2.H_h;
@@ -4555,15 +4555,15 @@ namespace H2ONaCl
                     switch (tmp_lut->m_const_which_var)
                     {
                     case LOOKUPTABLE_FOREST::CONST_X_VAR_TorHP:
-                        tmp_prop = prop_pHX(y, x, tmp_lut->m_constZ);
+                        tmp_prop = prop_pHX_bisection(y, x, tmp_lut->m_constZ);
                         fill_prop2data(this, &tmp_prop, tmp_lut->m_map_props, props);
                         break;
                     case LOOKUPTABLE_FOREST::CONST_P_VAR_XTorH:
-                        tmp_prop = prop_pHX(tmp_lut->m_constZ, y, x);
+                        tmp_prop = prop_pHX_bisection(tmp_lut->m_constZ, y, x);
                         fill_prop2data(this, &tmp_prop, tmp_lut->m_map_props, props);
                         break;
                     case LOOKUPTABLE_FOREST::CONST_TorH_VAR_XP:
-                        tmp_prop = prop_pHX(y, tmp_lut->m_constZ, x);
+                        tmp_prop = prop_pHX_bisection(y, tmp_lut->m_constZ, x);
                         fill_prop2data(this, &tmp_prop, tmp_lut->m_map_props, props);
                         break;
                     default:
@@ -4620,13 +4620,13 @@ namespace H2ONaCl
                 switch (tmp_lut->m_const_which_var)
                 {
                 case LOOKUPTABLE_FOREST::CONST_X_VAR_TorHP:
-                    prop = prop_pHX(y, x, tmp_lut->m_constZ);
+                    prop = prop_pHX_bisection(y, x, tmp_lut->m_constZ);
                     break;
                 case LOOKUPTABLE_FOREST::CONST_P_VAR_XTorH:
-                    prop = prop_pHX(tmp_lut->m_constZ, y, x);
+                    prop = prop_pHX_bisection(tmp_lut->m_constZ, y, x);
                     break;
                 case LOOKUPTABLE_FOREST::CONST_TorH_VAR_XP:
-                    prop = prop_pHX(y, tmp_lut->m_constZ, x);
+                    prop = prop_pHX_bisection(y, tmp_lut->m_constZ, x);
                     break;
                 default:
                     ERROR("Impossible case occurs in LOOKUPTABLE_FOREST::Quadrant<2,H2ONaCl::FIELD_DATA<2> > * cH2ONaCl::lookup(H2ONaCl::PROP_H2ONaCl& prop, double x, double y)");
@@ -4722,7 +4722,7 @@ namespace H2ONaCl
                     fill_prop2data(this, &tmp_prop, tmp_lut->m_map_props, props);
                 }else if (tmp_lut->m_TorH == LOOKUPTABLE_FOREST::EOS_ENERGY_H)
                 {
-                    tmp_prop = prop_pHX(y, x, z); //For 3D case, the order of x,y,z MUST BE TorH, p, X.
+                    tmp_prop = prop_pHX_bisection(y, x, z); //For 3D case, the order of x,y,z MUST BE TorH, p, X.
                     fill_prop2data(this, &tmp_prop, tmp_lut->m_map_props, props);
                 }else
                 {

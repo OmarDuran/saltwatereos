@@ -495,7 +495,7 @@ namespace SWEOSbash
         for (int k = 0; k < lenH; k++)
         {
           H2ONaCl::cH2ONaCl eos;
-          props[k+j*lenH] = eos.prop_pHX(arrP[j]*1e5, arrH[k]*1000.0, arrX[0]);
+          props[k+j*lenH] = eos.prop_pHX_bisection(arrP[j]*1e5, arrH[k]*1000.0, arrX[0]);
           // =eos.m_prop;
         }
         #pragma omp critical
@@ -543,7 +543,7 @@ namespace SWEOSbash
         for (int k = 0; k < lenH; k++)
         {
           H2ONaCl::cH2ONaCl eos;
-          props[k+j*lenH] = eos.prop_pHX(arrP[0]*1e5, arrH[k]*1000.0, arrX[j]);
+          props[k+j*lenH] = eos.prop_pHX_bisection(arrP[0]*1e5, arrH[k]*1000.0, arrX[j]);
           // =eos.m_prop;
         }
         #pragma omp critical
@@ -954,7 +954,7 @@ namespace SWEOSbash
         {
           arrP.push_back(m_valueP);
           arrX.push_back(m_valueX);
-          eos.m_prop=eos.prop_pHX(arrP[i]*1e5, arrH[i]*1000.0, arrX[i]);
+          eos.m_prop=eos.prop_pHX_bisection(arrP[i]*1e5, arrH[i]*1000.0, arrX[i]);
           props.push_back(eos.m_prop);
           multibar.Update();
         }
@@ -1386,7 +1386,7 @@ namespace SWEOSbash
   H2ONaCl::PROP_H2ONaCl calculateSinglePoint_PHX(double P, double H, double X, bool isCout)
   {
     H2ONaCl::cH2ONaCl eos;
-    eos.m_prop=eos.prop_pHX(P, H, X);
+    eos.m_prop=eos.prop_pHX_bisection(P, H, X);
     if(isCout)
     {
       eos.setColorPrint(true);

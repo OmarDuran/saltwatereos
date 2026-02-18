@@ -2955,7 +2955,7 @@ namespace H2ONaCl
             for (size_t i = 11; i < 14; i++){
                 P_crit += m_tab4_Driesner2007a.c[i]*pow(T - 500, i-11); //eq. 5c
             }
-        }else
+        }else if(T < H2ONaCl::TMIN_C || T > (H2ONaCl::TMAX_C + 1e-6))
         {
             cout<<WARN_COUT<<"T: "<<T<<" out of temperature range: ["<<H2ONaCl::TMIN_C<<", "<<H2ONaCl::TMAX_C<<"]"<<endl;
         }
@@ -2969,7 +2969,7 @@ namespace H2ONaCl
             for (size_t i = 7; i < 11; i++){
                 X_crit += m_tab4_Driesner2007a.d[i]*pow(T - 600, i-7); //eq. 7b
             }
-        }else if(T < H2ONaCl::TMIN_C || T > H2ONaCl::TMAX_C)
+        }else if(T < H2ONaCl::TMIN_C || T > (H2ONaCl::TMAX_C + 1e-6))
         {
             cout<<WARN_COUT<<"T: "<<T<<" out of temperature range: ["<<H2ONaCl::TMIN_C<<", "<<H2ONaCl::TMAX_C<<"]"<<endl;
         }

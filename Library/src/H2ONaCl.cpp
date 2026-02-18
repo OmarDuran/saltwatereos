@@ -1362,50 +1362,76 @@ namespace H2ONaCl
       // 5. Region Assignment
       PhaseRegion region_ind = SinglePhase_L;
 
-      // Ultra-low salinity: Treat more like pure water to match IAPWS behavior
-      // Convert X_mol to weight fraction for comparison: X_wt ≈ X_mol * (58.44/18.015) ≈ 3.244 * X_mol
-      double X_wt_approx = X_mol * 3.244;
-      bool ultra_low_salinity = (X_wt_approx < 0.0001);  // X_wt < 0.0001
-      
-      if (ultra_low_salinity) {
-          // For ultra-low salinity, use pure water saturation curve more strictly
-          // Near critical point of pure water
+      // Pure Water Check (exact zero salinity)
+      if (X_mol <= 1e-10) {
           double T_crit_H2O = 373.946;  // °C (IAPWS-95)
           double P_crit_H2O_bar = 220.64;  // bar (IAPWS-95)
           
-          // Distance from pure water critical point
-          double dT_crit = std::abs(T - T_crit_H2O);
-          double dP_crit = std::abs(Pres_bar - P_crit_H2O_bar);
-          
-          // Very close to pure water critical point (within 2°C and 5 bar)
-          if (dT_crit < 2.0 && dP_crit < 5.0) {
-              // At critical point, treat as single phase liquid (IAPWS convention)
-              if (Pres_bar >= P_crit_H2O_bar - 1.0) {
-                  Xl_all = X_mol;
-                  Xv_all = X_mol;
-                  return SinglePhase_L;  // IAPWS treats critical point as single phase
-              }
-          }
-          
-          // For subcritical pressures close to saturation
-          if (Pres_bar < P_crit_H2O_bar && std::abs(Pres_bar - Psat_H2O_bar) < 1.0) {
-              // Use pure water saturation logic
-              Xl_all = X_mol;
-              Xv_all = 0.0;
-              return TwoPhase_L_V_X0;  // Two-phase pure water
-          }
-          
-          // Supercritical: single phase
+          // Supercritical region
           if (Pres_bar > P_crit_H2O_bar && T > T_crit_H2O) {
-              Xl_all = X_mol;
-              Xv_all = X_mol;
-              return SinglePhase_L;  // Supercritical fluid
+              Xl_all = 0.0;
+              Xv_all = 0.0;
+              return SinglePhase_L;  // Supercritical (use liquid formulation)
+          }
+          
+          // Check if at saturation
+          if (Pres_bar <= P_crit_H2O_bar && std::abs(Pres_bar - Psat_H2O_bar) < 1e-4) {
+              return TwoPhase_L_V_X0;
+          }
+          
+          // Above critical temperature but subcritical pressure: superheated vapor
+          if (T > T_crit_H2O && Pres_bar < P_crit_H2O_bar) {
+              Xl_all = 0.0;
+              Xv_all = 0.0;
+              return SinglePhase_V;  // Superheated steam
+          }
+          
+          // Subcritical: determine liquid or vapor based on saturation pressure
+          if (Pres_bar > Psat_H2O_bar) {
+              Xl_all = 0.0;
+              Xv_all = 0.0;
+              return SinglePhase_L;  // Compressed liquid
+          } else {
+              Xl_all = 0.0;
+              Xv_all = 0.0;
+              return SinglePhase_V;  // Superheated vapor
           }
       }
       
-      // Pure Water Check (original logic)
-      if (X_mol <= 1e-10 && Pres_bar <= H2O::P_Critic) {
-          if (std::abs(Pres_bar - Psat_H2O_bar) < 1e-4) return TwoPhase_L_V_X0;
+      // Ultra-low salinity: Treat more like pure water to match IAPWS behavior
+      // Convert X_mol to weight fraction for comparison: X_wt ≈ X_mol * (58.44/18.015) ≈ 3.244 * X_mol
+      double X_wt_approx = X_mol * 3.244;
+      bool ultra_low_salinity = (X_wt_approx < 0.001);  // X_wt < 0.001 (0.1%)
+      
+      if (ultra_low_salinity) {
+          // For ultra-low salinity, check if we're close enough to pure water behavior
+          // The key is to check if the system is outside the two-phase envelope
+          // by a margin proportional to the salinity
+          
+          double T_crit_H2O = 373.946;  // °C (IAPWS-95)
+          double P_crit_H2O_bar = 220.64;  // bar (IAPWS-95)
+          
+          // Supercritical region: P > P_crit and T > T_crit
+          if (Pres_bar > P_crit_H2O_bar && T > T_crit_H2O) {
+              Xl_all = X_mol;
+              Xv_all = X_mol;
+              return SinglePhase_L;  // Supercritical single phase
+          }
+          
+          // Determine if we're in single-phase liquid or vapor region based on IAPWS
+          // by comparing pressure to saturation pressure
+          if (Pres_bar > Psat_H2O_bar * (1.0 + 0.1 * X_wt_approx / 0.001)) {
+              // Well above saturation: single phase liquid
+              Xl_all = X_mol;
+              Xv_all = 0.0;
+              return SinglePhase_L;
+          } else if (Pres_bar < Psat_H2O_bar * (1.0 - 0.1 * X_wt_approx / 0.001)) {
+              // Well below saturation: single phase vapor
+              Xl_all = 0.0;
+              Xv_all = X_mol;
+              return SinglePhase_V;
+          }
+          // Otherwise, fall through to normal two-phase logic
       }
 
       // Three-Phase V+L+H

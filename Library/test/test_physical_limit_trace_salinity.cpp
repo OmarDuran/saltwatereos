@@ -471,6 +471,150 @@ int main()
     }
     cout << "\n";
     
+    // NEW: Boundary Smoothness Test - Steam/Two-Phase Transition
+    cout << "====================================================\n";
+    cout << "Boundary Smoothness Test: Steam → Two-Phase Transition\n";
+    cout << "====================================================\n\n";
+    cout << "Objective: Verify smoothness of the boundary between pure steam\n";
+    cout << "           and two-phase regions at trace salinity (X=1e-4)\n";
+    cout << "Method: Temperature scan at constant pressure, comparing with IAPWS\n";
+    cout << "Expected: Properties should transition smoothly across phase boundary\n\n";
+    
+    const double X_boundary = 1.0e-4;  // Trace salinity for boundary test
+    int boundary_tests = 0;
+    int boundary_issues = 0;
+    
+    // Test at a single representative pressure
+    double P_bar = 100.0;
+    double P_Pa = P_bar * 1e5;
+    
+    cout << "\nBoundary Test at P = " << P_bar << " bar\n";
+    cout << "----------------------------------------\n";
+    cout << setw(10) << "T (°C)"
+         << setw(15) << "Region (EOS)"
+         << setw(15) << "Region (IAPWS)"
+         << setw(15) << "Rho (kg/m³)"
+         << setw(15) << "Rho_IAPWS"
+         << setw(15) << "ΔRho (%)"
+         << setw(15) << "H (kJ/kg)"
+         << setw(15) << "H_IAPWS"
+         << setw(15) << "ΔH (%)" << "\n";
+    cout << string(130, '-') << "\n";
+    
+    // Temperature scan from well below to well above saturation
+    double T_start = 250.0;
+    double T_end = 400.0;
+    double T_step = 5.0;
+    
+    // Store data for derivative analysis
+    vector<double> temps;
+    vector<int> regions_eos;
+    vector<int> regions_iapws;
+    vector<double> rhos_eos;
+    vector<double> rhos_iapws;
+    vector<double> hs_eos;
+    vector<double> hs_iapws;
+    
+    for(double T = T_start; T <= T_end; T += T_step) {
+        double T_K = T + 273.15;
+        
+        // Get properties with trace salinity
+        H2ONaCl::PROP_H2ONaCl prop_trace = eos.prop_pTX(P_Pa, T_K, X_boundary, true);
+        
+        // Get properties with pure water (IAPWS reference)
+        H2ONaCl::PROP_H2ONaCl prop_iapws = eos.prop_pTX(P_Pa, T_K, X_pure, true);
+        
+        if(isnan(prop_trace.Rho) || isnan(prop_iapws.Rho)) {
+            continue;
+        }
+        
+        temps.push_back(T);
+        regions_eos.push_back(prop_trace.Region);
+        regions_iapws.push_back(prop_iapws.Region);
+        rhos_eos.push_back(prop_trace.Rho);
+        rhos_iapws.push_back(prop_iapws.Rho);
+        hs_eos.push_back(prop_trace.H);
+        hs_iapws.push_back(prop_iapws.H);
+        
+        double rho_err = fabs(prop_trace.Rho - prop_iapws.Rho) / prop_iapws.Rho * 100.0;
+        double h_err = fabs(prop_trace.H - prop_iapws.H) / fabs(prop_iapws.H) * 100.0;
+        
+        cout << setw(10) << fixed << setprecision(1) << T
+             << setw(15) << prop_trace.Region
+             << setw(15) << prop_iapws.Region
+             << setw(15) << setprecision(3) << prop_trace.Rho
+             << setw(15) << setprecision(3) << prop_iapws.Rho
+             << setw(15) << setprecision(4) << rho_err
+             << setw(15) << setprecision(2) << prop_trace.H/1e3
+             << setw(15) << setprecision(2) << prop_iapws.H/1e3
+             << setw(15) << setprecision(4) << h_err;
+        
+        // Flag transitions
+        if(temps.size() > 1 && regions_eos[regions_eos.size()-2] != prop_trace.Region) {
+            cout << "  ← Transition";
+        }
+        
+        // Check for excessive errors near boundaries
+        if(rho_err > 1.0 || h_err > 1.0) {
+            cout << "  ⚠";
+            boundary_issues++;
+        }
+        
+        cout << "\n";
+        boundary_tests++;
+    }
+    
+    // Analyze smoothness: check for jumps in derivatives
+    cout << "\nSmoothness Analysis (derivatives):\n";
+    cout << setw(10) << "T (°C)"
+         << setw(15) << "dRho/dT"
+         << setw(15) << "dRho/dT_IAPWS"
+         << setw(15) << "d²Rho/dT²"
+         << setw(15) << "dH/dT"
+         << setw(15) << "dH/dT_IAPWS" << "\n";
+    cout << string(90, '-') << "\n";
+    
+    for(size_t i = 1; i < temps.size() - 1; i++) {
+        // First derivative (central difference)
+        double dT = temps[i+1] - temps[i-1];
+        double drho_dT_eos = (rhos_eos[i+1] - rhos_eos[i-1]) / dT;
+        double drho_dT_iapws = (rhos_iapws[i+1] - rhos_iapws[i-1]) / dT;
+        double dh_dT_eos = (hs_eos[i+1] - hs_eos[i-1]) / dT;
+        double dh_dT_iapws = (hs_iapws[i+1] - hs_iapws[i-1]) / dT;
+        
+        // Second derivative for rho
+        double d2rho_dT2 = 0.0;
+        if(i > 1 && i < temps.size() - 2) {
+            double dT_sq = T_step * T_step;
+            d2rho_dT2 = (rhos_eos[i+1] - 2.0*rhos_eos[i] + rhos_eos[i-1]) / dT_sq;
+        }
+        
+        cout << setw(10) << fixed << setprecision(1) << temps[i]
+             << setw(15) << setprecision(4) << drho_dT_eos
+             << setw(15) << setprecision(4) << drho_dT_iapws
+             << setw(15) << setprecision(4) << d2rho_dT2
+             << setw(15) << setprecision(2) << dh_dT_eos
+             << setw(15) << setprecision(2) << dh_dT_iapws;
+        
+        // Flag large second derivatives (indicating non-smoothness)
+        if(fabs(d2rho_dT2) > 5.0) {
+            cout << "  ⚠ Large curvature";
+        }
+        
+        cout << "\n";
+    }
+    
+    cout << "\nBoundary smoothness test summary:\n";
+    cout << "  Total boundary points checked: " << boundary_tests << "\n";
+    cout << "  Points with large errors (>1%): " << boundary_issues << "\n";
+    if(boundary_issues > 0) {
+        cout << "\n  ⚠ WARNING: Boundary region shows discontinuities or large errors!\n";
+        cout << "  The steam/two-phase transition may not be smooth at trace salinity.\n";
+    } else {
+        cout << "\n  ✓ SUCCESS: Boundary transition appears smooth\n";
+    }
+    cout << "\n";
+    
     // Summary
     cout << "====================================================\n";
     cout << "Summary:\n";
@@ -491,7 +635,7 @@ int main()
     // Return status
     int total_failed = failed_tests + pHX_failed;
     if(total_failed > 0 || boundary_issues > 0) {
-        cout << "TEST FAILED: " << total_failed << " test(s) failed, "
+        cout << "TEST FAILED: " << total_failed << " test(s) failed, " 
              << boundary_issues << " boundary issue(s) detected\n";
         return 1;
     } else {

@@ -31,7 +31,7 @@ int main()
     
     const double X_trace = 1.0e-5;  // Trace salinity
     const double X_pure = 0.0;       // Pure water
-    const double rel_tol = 1.0e-3;   // 0.01% tolerance (conservative)
+    const double rel_tol = 1.0e-4;   // 0.01% tolerance (conservative)
     
     // Define test conditions covering different regions
     // NOTE: Avoid saturation conditions as phase boundaries shift slightly with salinity

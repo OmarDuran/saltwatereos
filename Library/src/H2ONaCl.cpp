@@ -442,28 +442,53 @@ namespace H2ONaCl
     {
         const double T_ABS_MIN = 0.01;   // 0.01 C
         const double T_ABS_MAX = 1000.0; // 1000 C
-        const double dT = 25.0;          // Expansion step size
+        double dT = 25.0;                // Expansion step size
+        
+        // Critical point constants for pure water
+        const double P_crit_Pa = 22.064e6;   // Pa
+        const double H_crit_J = 2087.55e3;   // J/kg
+        
+        // Check if we're near critical region (low salinity only)
+        bool near_critical = false;
+        if(X_wt < 1e-3) {
+            double dP = std::abs(p - P_crit_Pa) / P_crit_Pa;
+            double dH = std::abs(H - H_crit_J) / H_crit_J;
+            if(dP < 0.15 && dH < 0.15) {
+                near_critical = true;
+                dT = 10.0;  // Use smaller steps in critical region
+            }
+        }
         
         PROP_H2ONaCl prop_low  = prop_pTX(p, T_low + Kelvin, X_wt, false);
         PROP_H2ONaCl prop_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
 
         int safety_counter = 0;
         const int max_expand = 40; // prevents infinite loops
+        
+        // Set expansion limits based on region
+        double T_expand_min = T_ABS_MIN;
+        double T_expand_max = T_ABS_MAX;
+        
+        if(near_critical) {
+            // Don't expand too far from critical point
+            T_expand_min = 320.0;  // ~50°C below Tc
+            T_expand_max = 500.0;  // ~125°C above Tc
+        }
 
         // Expansion logic: if target H is below current bracket
-        while (H < prop_low.H && T_low > T_ABS_MIN && safety_counter < max_expand) {
+        while (H < prop_low.H && T_low > T_expand_min && safety_counter < max_expand) {
             T_high = T_low;
             prop_high = prop_low;
-            T_low = std::max(T_ABS_MIN, T_low - dT);
+            T_low = std::max(T_expand_min, T_low - dT);
             prop_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
             safety_counter++;
         }
 
         // Expansion logic: if target H is above current bracket
-        while (H > prop_high.H && T_high < T_ABS_MAX && safety_counter < max_expand) {
+        while (H > prop_high.H && T_high < T_expand_max && safety_counter < max_expand) {
             T_low = T_high;
             prop_low = prop_high;
-            T_high = std::min(T_ABS_MAX, T_high + dT);
+            T_high = std::min(T_expand_max, T_high + dT);
             prop_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
             safety_counter++;
         }
@@ -478,6 +503,21 @@ namespace H2ONaCl
         const double tol = 1e-7;
         const int max_iter = 500;
         double T1, T2;
+        
+        // Critical point constants for pure water (IAPWS-95)
+        const double P_crit_Pa = 22.064e6;   // Pa
+        const double T_crit_C = 373.946;     // °C
+        const double H_crit_J = 2087.55e3;   // J/kg
+        
+        // Detect if we're near the critical region
+        bool near_critical = false;
+        if(X_wt < 1e-3) {  // Only for very low salinity
+            double dP = std::abs(p - P_crit_Pa) / P_crit_Pa;
+            double dH = std::abs(H - H_crit_J) / H_crit_J;
+            if(dP < 0.15 && dH < 0.15) {  // Within 15% of critical point
+                near_critical = true;
+            }
+        }
 
         // 1. INITIAL BRACKETING
         guess_T_PhX(p, H, X_wt, T1, T2);
@@ -501,8 +541,17 @@ namespace H2ONaCl
             }
         }
 
-        // 2. BISECTION LOOP
+        // 2. BISECTION LOOP WITH ADAPTIVE TOLERANCE FOR CRITICAL REGION
         PROP_H2ONaCl PROP_mid;
+        double adaptive_tol = tol;
+        double temp_tol = 1e-8;  // Temperature convergence tolerance
+        
+        if(near_critical) {
+            // Relax tolerance slightly near critical point due to strong nonlinearity
+            adaptive_tol = tol * 10.0;
+            temp_tol = 1e-6;  // Looser temperature tolerance
+        }
+        
         for (int iter = 0; iter < max_iter; ++iter) {
             double T_mid = 0.5 * (T_low + T_high);
             PROP_mid = prop_pTX(p, T_mid + Kelvin, X_wt, false);
@@ -565,18 +614,54 @@ namespace H2ONaCl
                 }
             }
 
-            // Convergence Check (Relative error in Enthalpy)
-            if (std::abs(PROP_mid.H - H) < tol * std::abs(H) || std::abs(T_high - T_low) < 1e-8) {
+            // Convergence Check (Relative error in Enthalpy with adaptive tolerance)
+            double H_error = std::abs(PROP_mid.H - H);
+            double H_ref = std::max(std::abs(H), 1.0);  // Avoid division by zero
+            
+            if (H_error < adaptive_tol * H_ref || std::abs(T_high - T_low) < temp_tol) {
                 break;
             }
+            
+            // Additional convergence check for critical region
+            if(near_critical && iter > 50) {
+                // If we're stuck oscillating in the critical region, accept current solution
+                if(H_error < adaptive_tol * H_ref * 100) {
+                    break;
+                }
+            }
 
-            // Update Brackets
-            if ((PROP_mid.H - H) * (PROP_low.H - H) < 0) {
+            // Update Brackets with safeguard for non-monotonic behavior
+            double f_low = PROP_low.H - H;
+            double f_mid = PROP_mid.H - H;
+            double f_high = PROP_high.H - H;
+            
+            // Standard bisection update
+            if (f_mid * f_low < 0) {
                 T_high = T_mid;
                 PROP_high = PROP_mid;
-            } else {
+            } else if (f_mid * f_high < 0) {
                 T_low = T_mid;
                 PROP_low = PROP_mid;
+            } else {
+                // Non-monotonic behavior detected (can happen near critical point)
+                // Use the point closest to target H
+                if(std::abs(f_mid) < std::abs(f_low) && std::abs(f_mid) < std::abs(f_high)) {
+                    // Mid point is best, narrow the search
+                    if(near_critical) {
+                        // In critical region, use smaller steps
+                        double delta = (T_high - T_low) * 0.25;
+                        T_low = std::max(T1, T_mid - delta);
+                        T_high = std::min(T2, T_mid + delta);
+                        PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
+                        PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
+                    } else {
+                        // Outside critical region, this shouldn't happen often
+                        break;  // Accept current solution
+                    }
+                } else {
+                    // One of the boundaries is better
+                    break;  // Accept current best solution
+                }
             }
         }
 
@@ -772,16 +857,34 @@ namespace H2ONaCl
         P = P*1e-6;
         h = h*1e-3;
         double tol = 1e-6;
-        double P_crit = 22.054915;   //MPa
+        double P_crit = 22.064;      // MPa (IAPWS-95 critical pressure)
+        double T_crit_C = 373.946;   // °C (IAPWS-95 critical temperature)
+        double H_crit = 2087.55;     // kJ/kg (approximate critical enthalpy)
         double P_creg = 21.839129;
 
         T1=0;
         T2=0;
         
+        // Check if we're in the critical region for low salinity
+        bool in_critical_region = false;
+        if(X < 1e-3) {  // Only for very low salinity
+            double dP = std::abs(P - P_crit) / P_crit;  // Relative pressure difference
+            double dH = std::abs(h - H_crit) / H_crit;  // Relative enthalpy difference
+            if(dP < 0.15 && dH < 0.15) {  // Within 15% of critical point
+                in_critical_region = true;
+            }
+        }
+        
         //1. calculate reg value
         int reg=2; //2 =  two phase pure water region
         if(P>P_crit) reg=4;
         if(reg == 4 && h > 2086) reg=5;
+        
+        // Override region detection if we're very close to critical point
+        if(in_critical_region && std::abs(P - P_crit) < 0.5 && std::abs(h - H_crit) < 100) {
+            // Very close to critical point - treat as supercritical (reg=4)
+            reg = 4;
+        }
 
         if(reg==2)
         {
@@ -845,13 +948,24 @@ namespace H2ONaCl
             {
                 double h_l0, h_v0, dpd_l0, dpd_v0, Mu_l0, Mu_v0,Rho_l,Rho_v;
                 fluidProp_crit_P(P*1e6 , tol, T1, Rho_l, h_l0, h_v0, dpd_l0, dpd_v0, Rho_v, Mu_l0, Mu_v0);
-                if(X > 0.6) T1= T1 - 200*X;
-                if(X > 0.8) T1= 2;
-                if(X <= 0.1) T1 = T1 - 15;
-                T2 = T1 + 30 + X*800; //old
-                if(X >= 0.4) T2 = T1 + 30 + X*1200;
-                if(X < 1e-4) T2= T2 + 15;
-                if(T2> 1000) T2 = 1000;
+                
+                // Special handling for critical region with low salinity
+                if(in_critical_region) {
+                    // Use tighter bounds around saturation temperature
+                    T1 = T1 - 10.0;  // Start 10°C below saturation
+                    T2 = T1 + 40.0;  // Narrow window of 40°C
+                    T1 = std::max(T1, 340.0);  // Don't go below 340°C
+                    T2 = std::min(T2, 420.0);  // Don't go above 420°C
+                } else {
+                    // Original logic for non-critical regions
+                    if(X > 0.6) T1= T1 - 200*X;
+                    if(X > 0.8) T1= 2;
+                    if(X <= 0.1) T1 = T1 - 15;
+                    T2 = T1 + 30 + X*800; //old
+                    if(X >= 0.4) T2 = T1 + 30 + X*1200;
+                    if(X < 1e-4) T2= T2 + 15;
+                    if(T2> 1000) T2 = 1000;
+                }
                 // cout<<"T1: "<<T1<<" T2: "<<T2<<endl;
             }
             break;
@@ -888,18 +1002,37 @@ namespace H2ONaCl
             break;
         case 4:
             {
-                // For very low salinity, use safe lower bound
-                if(X < 1e-4) {
-                    T1 = 0.1;
+                // Special handling for critical region with low salinity
+                if(in_critical_region) {
+                    // Near critical point, use narrow bounds around Tc
+                    T1 = T_crit_C - 20.0;  // 20°C below critical
+                    T2 = T_crit_C + 80.0;  // 80°C above critical
+                    
+                    // Adjust based on enthalpy
+                    if(h < (H_crit - 100)) {
+                        // Low enthalpy: liquid-like, shift down
+                        T1 = std::max(340.0, T_crit_C - 40.0);
+                        T2 = T_crit_C + 30.0;
+                    } else if(h > (H_crit + 100)) {
+                        // High enthalpy: vapor-like, shift up
+                        T1 = T_crit_C - 10.0;
+                        T2 = std::min(500.0, T_crit_C + 120.0);
+                    }
                 } else {
-                    T1 = 0;
+                    // Original logic for non-critical regions
+                    // For very low salinity, use safe lower bound
+                    if(X < 1e-4) {
+                        T1 = 0.1;
+                    } else {
+                        T1 = 0;
+                    }
+                    T2 = 450;
+                    if(X >= 0.3 && X <= 0.5) T2 =  T2 + X *800;
+                    if(X >= 0.5 && X <= 1) T2 =  T2 + X *1800;
+                    // For very low salinity, ensure reasonable upper bound
+                    if(X < 1e-4 && T2 < 500) T2 = 500;
+                    if(T2> 1000) T2 = 1000;
                 }
-                T2 = 450;
-                if(X >= 0.3 && X <= 0.5) T2 =  T2 + X *800;
-                if(X >= 0.5 && X <= 1) T2 =  T2 + X *1800;
-                // For very low salinity, ensure reasonable upper bound
-                if(X < 1e-4 && T2 < 500) T2 = 500;
-                if(T2> 1000) T2 = 1000;
             }
             break;
         case 5:
@@ -917,11 +1050,34 @@ namespace H2ONaCl
         if(T1 <= 0 || T2 <= 0 || T1 >= T2) {
             // Use conservative bounds for very low salinity
             if(X < 1e-3) {
-                T1 = 0.1;
-                T2 = 1000.0;
+                if(in_critical_region) {
+                    // In critical region, use tight bounds
+                    T1 = 350.0;
+                    T2 = 450.0;
+                } else {
+                    T1 = 0.1;
+                    T2 = 1000.0;
+                }
             } else {
                 T1 = 0.1;
                 T2 = 800.0;
+            }
+        }
+        
+        // Final validation: clamp to absolute valid range [0.1, 1000]
+        const double T_MIN_VALID = 0.1;
+        const double T_MAX_VALID = 1000.0;
+        T1 = std::max(T_MIN_VALID, std::min(T_MAX_VALID, T1));
+        T2 = std::max(T_MIN_VALID, std::min(T_MAX_VALID, T2));
+        
+        // Ensure T1 < T2 after clamping
+        if(T1 >= T2) {
+            if(in_critical_region) {
+                T1 = 350.0;
+                T2 = 450.0;
+            } else {
+                T1 = T_MIN_VALID;
+                T2 = T_MAX_VALID;
             }
         }
     }

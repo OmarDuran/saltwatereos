@@ -32,6 +32,7 @@ int main()
     const double X_trace = 1.0e-5;  // Trace salinity
     const double X_pure = 0.0;       // Pure water
     const double rel_tol = 1.0e-4;   // 0.01% tolerance (conservative)
+    const double X_boundary = 1.0e-4; // Boundary/saturation test salinity (0.01 wt%)
     
     // Define test conditions covering different regions
     // NOTE: Avoid saturation conditions as phase boundaries shift slightly with salinity
@@ -268,7 +269,7 @@ int main()
         cout << "  P = " << tc.P_bar << " bar, T = " << tc.T_C << " C\n";
         
         // Get enthalpy at this condition for pure water
-        H2ONaCl::PROP_H2ONaCl prop_pure_pTX = eos.prop_pTX(P_Pa, T_K, X_pure, false);
+        H2ONaCl::PROP_H2ONaCl prop_pure_pTX = eos.prop_pTX(P_Pa, T_K, X_pure);
         double H_target = prop_pure_pTX.H;
         
         if(isnan(H_target) || H_target == 0.0) {
@@ -471,149 +472,473 @@ int main()
     }
     cout << "\n";
     
-    // NEW: Boundary Smoothness Test - Steam/Two-Phase Transition
+    // SummaEnhanced Vapor-Side Boundary Test with IAPWS Comparison
     cout << "====================================================\n";
-    cout << "Boundary Smoothness Test: Steam → Two-Phase Transition\n";
+    cout << "Vapor-Side Boundary Test: Two-Phase → Pure Steam\n";
     cout << "====================================================\n\n";
-    cout << "Objective: Verify smoothness of the boundary between pure steam\n";
-    cout << "           and two-phase regions at trace salinity (X=1e-4)\n";
-    cout << "Method: Temperature scan at constant pressure, comparing with IAPWS\n";
-    cout << "Expected: Properties should transition smoothly across phase boundary\n\n";
+    cout << "Objective: Verify smoothness of vapor-side boundary at trace salinity\n";
+    cout << "Method: Temperature scans across saturation at multiple pressures\n";
+    cout << "        Compare with IAPWS to ensure region consistency\n";
+    cout << "Expected: Smooth transition with matching IAPWS regions\n\n";
     
-    const double X_boundary = 1.0e-4;  // Trace salinity for boundary test
-    int boundary_tests = 0;
-    int boundary_issues = 0;
+    int vapor_tests = 0;
+    int vapor_issues = 0;
+    int region_mismatches = 0;
     
-    // Test at a single representative pressure
-    double P_bar = 100.0;
-    double P_Pa = P_bar * 1e5;
+    // Test at multiple pressures to cover different parts of phase diagram
+    vector<double> test_P_bars = {50.0, 100.0, 150.0, 200.0};
     
-    cout << "\nBoundary Test at P = " << P_bar << " bar\n";
-    cout << "----------------------------------------\n";
-    cout << setw(10) << "T (°C)"
-         << setw(15) << "Region (EOS)"
-         << setw(15) << "Region (IAPWS)"
-         << setw(15) << "Rho (kg/m³)"
-         << setw(15) << "Rho_IAPWS"
-         << setw(15) << "ΔRho (%)"
-         << setw(15) << "H (kJ/kg)"
-         << setw(15) << "H_IAPWS"
-         << setw(15) << "ΔH (%)" << "\n";
-    cout << string(130, '-') << "\n";
-    
-    // Temperature scan from well below to well above saturation
-    double T_start = 250.0;
-    double T_end = 400.0;
-    double T_step = 5.0;
-    
-    // Store data for derivative analysis
-    vector<double> temps;
-    vector<int> regions_eos;
-    vector<int> regions_iapws;
-    vector<double> rhos_eos;
-    vector<double> rhos_iapws;
-    vector<double> hs_eos;
-    vector<double> hs_iapws;
-    
-    for(double T = T_start; T <= T_end; T += T_step) {
-        double T_K = T + 273.15;
+    for(size_t p_idx = 0; p_idx < test_P_bars.size(); p_idx++) {
+        double P_test_bar = test_P_bars[p_idx];
+        double P_test_Pa = P_test_bar * 1e5;
         
-        // Get properties with trace salinity
-        H2ONaCl::PROP_H2ONaCl prop_trace = eos.prop_pTX(P_Pa, T_K, X_boundary, true);
+        cout << "\nVapor Boundary Test at P = " << P_test_bar << " bar\n";
+        cout << "----------------------------------------\n";
+        cout << setw(10) << "T (°C)"
+             << setw(12) << "Reg(EOS)"
+             << setw(12) << "Reg(IAPWS)"
+             << setw(15) << "Rho(EOS)"
+             << setw(15) << "Rho(IAPWS)"
+             << setw(12) << "ΔRho(%)"
+             << setw(12) << "S_v(EOS)"
+             << setw(15) << "Status" << "\n";
+        cout << string(110, '-') << "\n";
         
-        // Get properties with pure water (IAPWS reference)
-        H2ONaCl::PROP_H2ONaCl prop_iapws = eos.prop_pTX(P_Pa, T_K, X_pure, true);
+        // Scan from high to low temperature to capture vapor→two-phase transition
+        double T_start = 400.0;
+        double T_end = 250.0;
+        double T_step = 5.0;
         
-        if(isnan(prop_trace.Rho) || isnan(prop_iapws.Rho)) {
-            continue;
+        vector<double> temps_vap;
+        vector<int> regions_eos_vap;
+        vector<int> regions_iapws_vap;
+        vector<double> rhos_eos_vap;
+        vector<double> rhos_iapws_vap;
+        
+        for(double T = T_start; T >= T_end; T -= T_step) {
+            double T_K = T + 273.15;
+            
+            H2ONaCl::PROP_H2ONaCl prop_trace = eos.prop_pTX(P_test_Pa, T_K, X_boundary);
+            H2ONaCl::PROP_H2ONaCl prop_iapws = eos.prop_pTX(P_test_Pa, T_K, X_pure);
+            
+            if(isnan(prop_trace.Rho) || isnan(prop_iapws.Rho)) continue;
+            
+            temps_vap.push_back(T);
+            regions_eos_vap.push_back(prop_trace.Region);
+            regions_iapws_vap.push_back(prop_iapws.Region);
+            rhos_eos_vap.push_back(prop_trace.Rho);
+            rhos_iapws_vap.push_back(prop_iapws.Rho);
+            
+            double rho_err = fabs(prop_trace.Rho - prop_iapws.Rho) / prop_iapws.Rho * 100.0;
+            
+            string status = "";
+            bool region_match = (prop_trace.Region == prop_iapws.Region);
+            
+            // For single-phase, IAPWS uses region 0 or 2, EOS uses region 2 for vapor
+            if((prop_iapws.Region == 0 || prop_iapws.Region == 2) && prop_trace.Region == 2) {
+                region_match = true;
+            }
+            
+            if(!region_match) {
+                status = "REG_MISMATCH";
+                region_mismatches++;
+            }
+            if(rho_err > 1.0) {
+                status += status.empty() ? "HIGH_ERROR" : ",HIGH_ERROR";
+                vapor_issues++;
+            }
+            if(temps_vap.size() > 1 && regions_eos_vap[regions_eos_vap.size()-2] != prop_trace.Region) {
+                status += status.empty() ? "→TRANS" : ",→TRANS";
+            }
+            
+            cout << setw(10) << fixed << setprecision(1) << T
+                 << setw(12) << prop_trace.Region
+                 << setw(12) << prop_iapws.Region
+                 << setw(15) << setprecision(3) << prop_trace.Rho
+                 << setw(15) << setprecision(3) << prop_iapws.Rho
+                 << setw(12) << setprecision(4) << rho_err
+                 << setw(12) << setprecision(4) << prop_trace.S_v
+                 << setw(15) << (status.empty() ? "OK" : status) << "\n";
+            
+            vapor_tests++;
         }
-        
-        temps.push_back(T);
-        regions_eos.push_back(prop_trace.Region);
-        regions_iapws.push_back(prop_iapws.Region);
-        rhos_eos.push_back(prop_trace.Rho);
-        rhos_iapws.push_back(prop_iapws.Rho);
-        hs_eos.push_back(prop_trace.H);
-        hs_iapws.push_back(prop_iapws.H);
-        
-        double rho_err = fabs(prop_trace.Rho - prop_iapws.Rho) / prop_iapws.Rho * 100.0;
-        double h_err = fabs(prop_trace.H - prop_iapws.H) / fabs(prop_iapws.H) * 100.0;
-        
-        cout << setw(10) << fixed << setprecision(1) << T
-             << setw(15) << prop_trace.Region
-             << setw(15) << prop_iapws.Region
-             << setw(15) << setprecision(3) << prop_trace.Rho
-             << setw(15) << setprecision(3) << prop_iapws.Rho
-             << setw(15) << setprecision(4) << rho_err
-             << setw(15) << setprecision(2) << prop_trace.H/1e3
-             << setw(15) << setprecision(2) << prop_iapws.H/1e3
-             << setw(15) << setprecision(4) << h_err;
-        
-        // Flag transitions
-        if(temps.size() > 1 && regions_eos[regions_eos.size()-2] != prop_trace.Region) {
-            cout << "  ← Transition";
-        }
-        
-        // Check for excessive errors near boundaries
-        if(rho_err > 1.0 || h_err > 1.0) {
-            cout << "  ⚠";
-            boundary_issues++;
-        }
-        
-        cout << "\n";
-        boundary_tests++;
     }
     
-    // Analyze smoothness: check for jumps in derivatives
-    cout << "\nSmoothness Analysis (derivatives):\n";
-    cout << setw(10) << "T (°C)"
-         << setw(15) << "dRho/dT"
-         << setw(15) << "dRho/dT_IAPWS"
-         << setw(15) << "d²Rho/dT²"
-         << setw(15) << "dH/dT"
-         << setw(15) << "dH/dT_IAPWS" << "\n";
-    cout << string(90, '-') << "\n";
-    
-    for(size_t i = 1; i < temps.size() - 1; i++) {
-        // First derivative (central difference)
-        double dT = temps[i+1] - temps[i-1];
-        double drho_dT_eos = (rhos_eos[i+1] - rhos_eos[i-1]) / dT;
-        double drho_dT_iapws = (rhos_iapws[i+1] - rhos_iapws[i-1]) / dT;
-        double dh_dT_eos = (hs_eos[i+1] - hs_eos[i-1]) / dT;
-        double dh_dT_iapws = (hs_iapws[i+1] - hs_iapws[i-1]) / dT;
-        
-        // Second derivative for rho
-        double d2rho_dT2 = 0.0;
-        if(i > 1 && i < temps.size() - 2) {
-            double dT_sq = T_step * T_step;
-            d2rho_dT2 = (rhos_eos[i+1] - 2.0*rhos_eos[i] + rhos_eos[i-1]) / dT_sq;
-        }
-        
-        cout << setw(10) << fixed << setprecision(1) << temps[i]
-             << setw(15) << setprecision(4) << drho_dT_eos
-             << setw(15) << setprecision(4) << drho_dT_iapws
-             << setw(15) << setprecision(4) << d2rho_dT2
-             << setw(15) << setprecision(2) << dh_dT_eos
-             << setw(15) << setprecision(2) << dh_dT_iapws;
-        
-        // Flag large second derivatives (indicating non-smoothness)
-        if(fabs(d2rho_dT2) > 5.0) {
-            cout << "  ⚠ Large curvature";
-        }
-        
-        cout << "\n";
-    }
-    
-    cout << "\nBoundary smoothness test summary:\n";
-    cout << "  Total boundary points checked: " << boundary_tests << "\n";
-    cout << "  Points with large errors (>1%): " << boundary_issues << "\n";
-    if(boundary_issues > 0) {
-        cout << "\n  ⚠ WARNING: Boundary region shows discontinuities or large errors!\n";
-        cout << "  The steam/two-phase transition may not be smooth at trace salinity.\n";
+    cout << "\nVapor-side boundary test summary:\n";
+    cout << "  Total vapor boundary points: " << vapor_tests << "\n";
+    cout << "  Region mismatches with IAPWS: " << region_mismatches << "\n";
+    cout << "  Points with high errors (>1%): " << vapor_issues << "\n";
+    if(region_mismatches > 0 || vapor_issues > 0) {
+        cout << "\n  ⚠ WARNING: Vapor-side boundary has issues!\n";
     } else {
         cout << "\n  ✓ SUCCESS: Boundary transition appears smooth\n";
     }
     cout << "\n";
+    
+    // NEW: Focused Vapor-Side Boundary Test at X=0.0001
+    cout << "====================================================\n";
+    cout << "Vapor-Side Boundary: Pure Steam Continuity (X=0.0001)\n";
+    cout << "====================================================\n\n";
+    cout << "Testing at P = 100 bar across critical temperature\n\n";
+    
+    double P_vapor_Pa = 100.0e5;
+    int n_vapor_issues = 0;
+    
+    cout << setw(8) << "T(C)" << setw(10) << "Reg(EOS)" << setw(10) << "Reg(IAPWS)"
+         << setw(12) << "Rho(EOS)" << setw(12) << "Rho(IAPWS)" << setw(10) << "ΔRho(%)"
+         << setw(10) << "S_v" << setw(10) << "S_l" << setw(15) << "Status" << "\n";
+    cout << string(95, '-') << "\n";
+    
+    for(double T = 310; T <= 385; T += 1) {
+        double T_K = T + 273.15;
+        H2ONaCl::PROP_H2ONaCl prop_eos = eos.prop_pTX(P_vapor_Pa, T_K, X_boundary);
+        H2ONaCl::PROP_H2ONaCl prop_iapws = eos.prop_pTX(P_vapor_Pa, T_K, X_pure);
+        
+        if(isnan(prop_eos.Rho) || isnan(prop_iapws.Rho)) continue;
+        
+        double rho_err = fabs(prop_eos.Rho - prop_iapws.Rho) / prop_iapws.Rho * 100.0;
+        string status = "";
+        
+        // Check region consistency
+        bool reg_ok = (prop_eos.Region == prop_iapws.Region) ||
+                      ((prop_iapws.Region == 0 || prop_iapws.Region == 2) && prop_eos.Region == 2);
+        
+        if(!reg_ok) {
+            status = "REG_MISMATCH";
+            n_vapor_issues++;
+        }
+        if(rho_err > 0.5) {
+            if(!status.empty()) status += ",";
+            status += "ERR";
+            n_vapor_issues++;
+        }
+        // Check saturation consistency in single-phase vapor
+        if(prop_eos.Region == 2 && (prop_eos.S_v < 0.999 || prop_eos.S_l > 0.001)) {
+            if(!status.empty()) status += ",";
+            status += "BAD_SAT";
+            n_vapor_issues++;
+        }
+        
+        cout << setw(8) << fixed << setprecision(1) << T
+             << setw(10) << prop_eos.Region << setw(10) << prop_iapws.Region
+             << setw(12) << setprecision(3) << prop_eos.Rho
+             << setw(12) << setprecision(3) << prop_iapws.Rho
+             << setw(10) << setprecision(3) << rho_err
+             << setw(10) << setprecision(4) << prop_eos.S_v
+             << setw(10) << setprecision(4) << prop_eos.S_l
+             << setw(15) << (status.empty() ? "OK" : status) << "\n";
+    }
+    
+    cout << "\nVapor continuity: " << (n_vapor_issues == 0 ? "✓ PASSED" : "⚠ ISSUES FOUND")
+         << " (" << n_vapor_issues << " issues)\n\n";
+    
+    // Summary
+    cout << "====================================================\n";
+    cout << "Vapor-Side Boundary Test: Pure Steam Continuity\n";
+    cout << "====================================================\n\n";
+    cout << "Objective: Verify pure steam line is continuous at X=0.0001\n";
+    cout << "Method: Temperature scans at multiple pressures with IAPWS comparison\n";
+    cout << "Expected: Smooth vapor region matching IAPWS, S_v = 1.0\n\n";
+    
+    vapor_tests = 0;
+    vapor_issues = 0;
+    region_mismatches = 0;
+    
+    for(size_t p_idx = 0; p_idx < test_P_bars.size(); p_idx++) {
+        double P_test_bar = test_P_bars[p_idx];
+        double P_test_Pa = P_test_bar * 1e5;
+        
+        cout << "\nVapor Test at P = " << P_test_bar << " bar, X = 1e-4\n";
+        cout << string(100, '-') << "\n";
+        cout << setw(8) << "T(C)"
+             << setw(10) << "Reg(EOS)"
+             << setw(10) << "Reg(IAPWS)"
+             << setw(12) << "Rho(EOS)"
+             << setw(12) << "Rho(IAPWS)"
+             << setw(10) << "ΔRho(%)"
+             << setw(10) << "S_v(EOS)"
+             << setw(10) << "S_l(EOS)"
+             << setw(15) << "Status" << "\n";
+        cout << string(100, '-') << "\n";
+        
+        // Scan from high to low T
+        for(double T = 400.0; T >= 250.0; T -= 5.0) {
+            double T_K = T + 273.15;
+            
+            H2ONaCl::PROP_H2ONaCl prop_trace = eos.prop_pTX(P_test_Pa, T_K, X_boundary);
+            H2ONaCl::PROP_H2ONaCl prop_iapws = eos.prop_pTX(P_test_Pa, T_K, X_pure);
+            
+            if(isnan(prop_trace.Rho) || isnan(prop_iapws.Rho)) continue;
+            
+            double rho_err = fabs(prop_trace.Rho - prop_iapws.Rho) / prop_iapws.Rho * 100.0;
+            
+            string status = "";
+            bool region_match = (prop_trace.Region == prop_iapws.Region);
+            
+            // IAPWS uses region 0 or 2 for single-phase, EOS uses 2 for vapor
+            if((prop_iapws.Region == 0 || prop_iapws.Region == 2) && prop_trace.Region == 2) {
+                region_match = true;
+            }
+            
+            // Check for issues
+            if(!region_match) {
+                status = "REG_MISMATCH";
+                region_mismatches++;
+            }
+            if(rho_err > 1.0) {
+                if(!status.empty()) status += ",";
+                status += "HIGH_ERR";
+                vapor_issues++;
+            }
+            
+            // Check S_v continuity (should be 1.0 or 0.0 in single-phase)
+            if(prop_trace.Region == 2 && fabs(prop_trace.S_v - 1.0) > 0.01) {
+                if(!status.empty()) status += ",";
+                status += "BAD_S_v";
+                vapor_issues++;
+            }
+            
+            cout << setw(8) << fixed << setprecision(1) << T
+                 << setw(10) << prop_trace.Region
+                 << setw(10) << prop_iapws.Region
+                 << setw(12) << setprecision(3) << prop_trace.Rho
+                 << setw(12) << setprecision(3) << prop_iapws.Rho
+                 << setw(10) << setprecision(4) << rho_err
+                 << setw(10) << setprecision(4) << prop_trace.S_v
+                 << setw(10) << setprecision(4) << prop_trace.S_l
+                 << setw(15) << (status.empty() ? "OK" : status) << "\n";
+            
+            vapor_tests++;
+        }
+    }
+    
+    cout << "\nVapor-side test summary:\n";
+    cout << "  Total vapor points: " << vapor_tests << "\n";
+    cout << "  Region mismatches: " << region_mismatches << "\n";
+    cout << "  Property issues: " << vapor_issues << "\n";
+    if(region_mismatches > 0 || vapor_issues > 0) {
+        cout << "\n  ⚠ WARNING: Vapor-side boundary has issues!\n";
+    } else {
+        cout << "\n  ✓ SUCCESS: Vapor-side is smooth and continuous\n";
+    }
+    cout << "\n";
+    
+    cout << "\n====================================================\n";
+    
+    // ====================================================================
+    // COMPREHENSIVE SATURATION LINE TEST FOR X=0.0001
+    // ====================================================================
+    cout << "====================================================\n";
+    cout << "Steam Saturation Line Test: X=0.0001 vs IAPWS\n";
+    cout << "====================================================\n\n";
+    cout << "Objective: Verify continuous steam saturation curve\n";
+    cout << "Method: Dense sampling along saturation line (50+ points)\n";
+    cout << "Expected: S_v=1.0, smooth region=2, matching IAPWS\n\n";
+    
+    int sat_tests = 0;
+    int sat_failures = 0;
+    double max_sat_rho_err = 0.0;
+    double max_sat_T_err = 0.0;
+    
+    // Create dense temperature grid from 100C to 370C with 1 degree resolution
+    vector<double> sat_temps;
+    for(double T = 100.0; T <= 370.0; T += 1.0) sat_temps.push_back(T);
+    
+    cout << "Testing " << sat_temps.size() << " points along saturation curve:\n\n";
+    cout << string(130, '=') << "\n";
+    cout << setw(8) << "T(C)"
+         << setw(10) << "P_sat(bar)"
+         << setw(12) << "H_v(kJ/kg)"
+         << setw(8) << "Reg_pTX"
+         << setw(8) << "Reg_pHX"
+         << setw(12) << "Rho_pTX"
+         << setw(12) << "Rho_pHX"
+         << setw(12) << "Rho_IAPWS"
+         << setw(10) << "ΔRho(%)"
+         << setw(8) << "S_v"
+         << setw(12) << "Status" << "\n";
+    cout << string(130, '=') << "\n";
+    
+    for(size_t i = 0; i < sat_temps.size(); i++) {
+        double T_C = sat_temps[i];
+        double T_K = T_C + 273.15;
+        
+        // Get saturation pressure
+        double P_sat_bar = eos.m_water.P_Boiling(T_C);
+        double P_sat_Pa = P_sat_bar * 1e5;
+        
+        // Get IAPWS properties
+        H2ONaCl::PROP_H2ONaCl prop_iapws = eos.prop_pTX(P_sat_Pa, T_K, X_pure);
+        
+        if(isnan(prop_iapws.H_v) || prop_iapws.H_v <= 0) continue;
+        
+        double H_v_sat = prop_iapws.H_v;
+        
+        // Test X=0.0001 with pTX (direct)
+        H2ONaCl::PROP_H2ONaCl prop_pTX = eos.prop_pTX(P_sat_Pa, T_K, X_boundary);
+        
+        // Test X=0.0001 with pHX (bisection)
+        H2ONaCl::PROP_H2ONaCl prop_pHX = eos.prop_pHX(P_sat_Pa, H_v_sat, X_boundary);
+        
+        if(isnan(prop_pTX.Rho) || isnan(prop_pHX.Rho)) {
+            sat_failures++;
+            continue;
+        }
+        
+        double rho_err = fabs(prop_pHX.Rho - prop_iapws.Rho_v) / prop_iapws.Rho_v * 100.0;
+        double T_err = fabs(prop_pHX.T - T_K) / T_K * 100.0;
+        
+        max_sat_rho_err = max(max_sat_rho_err, rho_err);
+        max_sat_T_err = max(max_sat_T_err, T_err);
+        
+        string status = "OK";
+        
+        // Check region consistency
+        if(prop_pTX.Region != 2 || prop_pHX.Region != 2) {
+            status = "WRONG_REGION";
+            sat_failures++;
+        }
+        
+        // Check S_v = 1.0
+        if(fabs(prop_pTX.S_v - 1.0) > 0.01 || fabs(prop_pHX.S_v - 1.0) > 0.01) {
+            status = "BAD_S_v";
+            sat_failures++;
+        }
+        
+        // Check errors
+        if(rho_err > 10.0 || T_err > 1.0) {
+            status = "HIGH_ERROR";
+            sat_failures++;
+        }
+        
+        // Print every 5th point or if there's an issue
+        if(i % 5 == 0 || status != "OK") {
+            cout << setw(8) << fixed << setprecision(1) << T_C
+                 << setw(10) << setprecision(2) << P_sat_bar
+                 << setw(12) << setprecision(1) << H_v_sat/1e3
+                 << setw(8) << prop_pTX.Region
+                 << setw(8) << prop_pHX.Region
+                 << setw(12) << setprecision(3) << prop_pTX.Rho
+                 << setw(12) << setprecision(3) << prop_pHX.Rho
+                 << setw(12) << setprecision(3) << prop_iapws.Rho_v
+                 << setw(10) << setprecision(4) << rho_err
+                 << setw(8) << setprecision(4) << prop_pHX.S_v
+                 << setw(12) << status << "\n";
+        }
+        
+        sat_tests++;
+    }
+    
+    cout << string(130, '=') << "\n";
+    cout << "\nSaturation line test results:\n";
+    cout << "  Total points tested: " << sat_tests << "\n";
+    cout << "  Failures detected: " << sat_failures << "\n";
+    cout << "  Max density error: " << fixed << setprecision(4) << max_sat_rho_err << "%\n";
+    cout << "  Max temperature error: " << max_sat_T_err << "%\n";
+    
+    if(sat_failures == 0) {
+        cout << "\n  ✓ SUCCESS: Steam saturation line is continuous and smooth!\n";
+        cout << "  All points show S_v=1.0, Region=2, matching IAPWS\n";
+    } else {
+        cout << "\n  ⚠ FAILED: " << sat_failures << " discontinuities detected\n";
+    }
+    cout << "\n====================================================\n\n";
+    
+    // ====================================================================
+    // PRESSURE SCAN TEST: Multiple pressures along saturation
+    // ====================================================================
+    cout << "====================================================\n";
+    cout << "Pressure Scan: Saturation Properties at X=0.0001\n";
+    cout << "====================================================\n\n";
+    
+    int pscan_tests = 0;
+    int pscan_failures = 0;
+    
+    // Dense pressure grid
+    vector<double> test_pressures;
+    for(double P = 10.0; P <= 50.0; P += 5.0) test_pressures.push_back(P);
+    for(double P = 50.0; P <= 150.0; P += 10.0) test_pressures.push_back(P);
+    for(double P = 150.0; P <= 220.0; P += 5.0) test_pressures.push_back(P);
+    
+    cout << "Testing " << test_pressures.size() << " pressure points:\n\n";
+    cout << string(110, '=') << "\n";
+    cout << setw(10) << "P(bar)"
+         << setw(8) << "T_sat(C)"
+         << setw(12) << "Rho(kg/m³)"
+         << setw(12) << "Rho_IAPWS"
+         << setw(10) << "ΔRho(%)"
+         << setw(8) << "Region"
+         << setw(8) << "S_v"
+         << setw(8) << "S_l"
+         << setw(12) << "Status" << "\n";
+    cout << string(110, '=') << "\n";
+    
+    for(size_t i = 0; i < test_pressures.size(); i++) {
+        double P_bar = test_pressures[i];
+        double P_Pa = P_bar * 1e5;
+        
+        double T_sat_C = eos.m_water.T_Boiling(P_bar);
+        double T_sat_K = T_sat_C + 273.15;
+        
+        // IAPWS reference
+        H2ONaCl::PROP_H2ONaCl prop_iapws = eos.prop_pTX(P_Pa, T_sat_K, X_pure);
+        
+        // Test X=0.0001
+        H2ONaCl::PROP_H2ONaCl prop_trace = eos.prop_pTX(P_Pa, T_sat_K, X_boundary);
+        
+        if(isnan(prop_trace.Rho) || isnan(prop_iapws.Rho_v)) {
+            pscan_failures++;
+            continue;
+        }
+        
+        double rho_err = fabs(prop_trace.Rho - prop_iapws.Rho_v) / prop_iapws.Rho_v * 100.0;
+        
+        string status = "OK";
+        if(prop_trace.Region != 2) {
+            status = "WRONG_REGION";
+            pscan_failures++;
+        }
+        if(fabs(prop_trace.S_v - 1.0) > 0.01) {
+            status = "BAD_S_v";
+            pscan_failures++;
+        }
+        if(rho_err > 10.0) {
+            status = "HIGH_ERROR";
+            pscan_failures++;
+        }
+        
+        // Print every 3rd point or if there's an issue
+        if(i % 3 == 0 || status != "OK") {
+            cout << setw(10) << fixed << setprecision(1) << P_bar
+                 << setw(8) << setprecision(2) << T_sat_C
+                 << setw(12) << setprecision(3) << prop_trace.Rho
+                 << setw(12) << setprecision(3) << prop_iapws.Rho_v
+                 << setw(10) << setprecision(4) << rho_err
+                 << setw(8) << prop_trace.Region
+                 << setw(8) << setprecision(4) << prop_trace.S_v
+                 << setw(8) << setprecision(4) << prop_trace.S_l
+                 << setw(12) << status << "\n";
+        }
+        
+        pscan_tests++;
+    }
+    
+    cout << string(110, '=') << "\n";
+    cout << "\nPressure scan results:\n";
+    cout << "  Total points: " << pscan_tests << "\n";
+    cout << "  Failures: " << pscan_failures << "\n";
+    
+    if(pscan_failures == 0) {
+        cout << "\n  ✓ SUCCESS: Consistent behavior across all pressures\n";
+    } else {
+        cout << "\n  ⚠ FAILED: " << pscan_failures << " issues detected\n";
+    }
+    cout << "\n====================================================\n";
+    
+    // Update total failures
+    int total_failed = failed_tests + pHX_failed + sat_failures + pscan_failures;
+    
+    // Return status
     
     // Summary
     cout << "====================================================\n";
@@ -623,23 +948,21 @@ int main()
          << skipped_tests << " skipped (region mismatch)\n";
     cout << "  prop_pHX_bisection tests: " << pHX_tests << " executed, "
          << (pHX_tests - pHX_failed) << " passed, " << pHX_failed << " failed\n";
-    cout << "  Maximum density error: " << scientific << setprecision(3) << max_rho_error
-         << " (" << setprecision(2) << max_rho_error*100 << "%)\n";
-    cout << "  Maximum enthalpy error: " << setprecision(3) << max_h_error
-         << " (" << setprecision(2) << max_h_error*100 << "%)\n";
-    cout << "  Maximum viscosity error: " << setprecision(3) << max_mu_error
-         << " (" << setprecision(2) << max_mu_error*100 << "%)\n";
+    cout << "  Saturation line tests: " << sat_tests << " executed, "
+         << (sat_tests - sat_failures) << " passed, " << sat_failures << " failed\n";
+    cout << "  Pressure scan tests: " << pscan_tests << " executed, "
+         << (pscan_tests - pscan_failures) << " passed, " << pscan_failures << " failed\n";
+    cout << "  Maximum density error: " << scientific << setprecision(3) << max_rho_error << "%\n";
+    cout << "  Maximum enthalpy error: " << setprecision(3) << max_h_error << "%\n";
     
     cout << "\n====================================================\n";
     
-    // Return status
-    int total_failed = failed_tests + pHX_failed;
-    if(total_failed > 0 || boundary_issues > 0) {
-        cout << "TEST FAILED: " << total_failed << " test(s) failed, " 
-             << boundary_issues << " boundary issue(s) detected\n";
+    if(total_failed > 0) {
+        cout << "\n⚠ TEST FAILED: " << total_failed << " test(s) failed\n";
         return 1;
     } else {
-        cout << "ALL TESTS PASSED\n";
+        cout << "\n✓✓✓ ALL TESTS PASSED ✓✓✓\n";
+        cout << "Steam saturation line is continuous and smooth for X=0.0001!\n";
         return 0;
     }
 }

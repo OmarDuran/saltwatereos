@@ -28,8 +28,8 @@ int main()
         double T_C = 309.0 + (P_bar - 98.0) * 0.5;  // Approximate T from our earlier tests
         double T_K = T_C + 273.15;
         
-        // Call water_mu_pT directly - this is a public method
-        double mu = eos.water_mu_pT(P_Pa, T_K);
+        // Use public method mu_pTX with X=0 for pure water
+        double mu = eos.mu_pTX(P_Pa, T_K, 0.0);
         
         // Also need to know what T_sat is at this pressure
         // We can get this by checking pure water saturation
@@ -50,22 +50,23 @@ int main()
     double T1 = 310.144 + 273.15;  // From our earlier diagnostic
     double T2 = 310.293 + 273.15;
     
-    double mu1 = eos.water_mu_pT(P1, T1);
-    double mu2 = eos.water_mu_pT(P2, T2);
+    // Use public method mu_pTX with X=0 for pure water
+    double mu1 = eos.mu_pTX(P1, T1, 0.0);
+    double mu2 = eos.mu_pTX(P2, T2, 0.0);
     
     cout << "P = 98.8 bar, T = " << fixed << setprecision(3) << (T1 - 273.15) << " °C:\n";
-    cout << "  water_mu_pT returned: " << scientific << setprecision(6) << mu1 << " Pa·s\n\n";
+    cout << "  mu_pTX(X=0) returned: " << scientific << setprecision(6) << mu1 << " Pa·s\n\n";
     
     cout << "P = 99.0 bar, T = " << fixed << setprecision(3) << (T2 - 273.15) << " °C:\n";
-    cout << "  water_mu_pT returned: " << scientific << setprecision(6) << mu2 << " Pa·s\n\n";
+    cout << "  mu_pTX(X=0) returned: " << scientific << setprecision(6) << mu2 << " Pa·s\n\n";
     
     cout << "Ratio: " << fixed << setprecision(2) << (mu2 / mu1) << "x\n";
     cout << "Change: " << setprecision(1) << ((mu2/mu1 - 1.0) * 100.0) << "%\n\n";
     
     if(mu2 / mu1 > 2.0) {
-        cout << "⚠ CONFIRMED: water_mu_pT has a discontinuity!\n";
+        cout << "⚠ CONFIRMED: Pure water viscosity has a discontinuity!\n";
         cout << "This is the root cause of the vapor viscosity jump.\n\n";
-        cout << "The issue is in the water_mu_pT function implementation.\n";
+        cout << "The issue is in the viscosity calculation for pure water.\n";
         cout << "At P≈99 bar, T≈310°C, the function is likely:\n";
         cout << "1. Near saturation line and triggering fallback logic\n";
         cout << "2. The fallback is selecting wrong phase (liquid vs vapor)\n";

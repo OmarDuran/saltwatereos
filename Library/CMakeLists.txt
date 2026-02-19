@@ -14,7 +14,7 @@ endif()
 project(eosH2ONaCl LANGUAGES CXX C)
 # project(${PROJECT_NAME} LANGUAGES CXX)
 set(LIB_NAME "${PROJECT_NAME}")
-if(${CMAKE_VERSION} VERSION_LESS "3.3") 
+if(${CMAKE_VERSION} VERSION_LESS "3.3")
 else()
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,7 +49,7 @@ if(USE_OMP)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
   endif()
-  #windows vs2017 doesn't need opm library link 
+  #windows vs2017 doesn't need opm library link
   set(LIBomp "")
   if (APPLE)
     set(LIBomp "omp")
@@ -97,7 +97,7 @@ add_subdirectory(src)
 # add_subdirectory(swig/NaCl)
 # add_subdirectory(swig/H2ONaCl) # split omp-related code to another file, and do not compile that file in swig
 
-# install path 
+# install path
 INCLUDE_DIRECTORIES( ${PROJECT_SOURCE_DIR}/include )
 link_directories(/usr/local/lib)
 FILE(GLOB SC_FILES "${PROJECT_SOURCE_DIR}/src/PROST/*.c" "${PROJECT_SOURCE_DIR}/src/PROST/*.h" "${PROJECT_SOURCE_DIR}/src/*.H" "${PROJECT_SOURCE_DIR}/src/*.cpp" )
@@ -124,9 +124,37 @@ install (FILES "${PROJECT_SOURCE_DIR}/app/randSample.py" DESTINATION ${PROJECT_S
 
 # testing
 enable_testing()
-add_executable(test_lut ${SC_FILES} test/test_H2ONaCl_LUT.cpp)
-target_link_libraries(test_lut ${LIBomp})
-add_test(test_lut0 test_lut 1)
+
+# Define all test executables
+list(APPEND Tests
+    test_boundary_smoothness
+    test_boundary_temperature
+    test_critical_point_region_identification
+    test_debug_viscosity
+    test_enthalpy_consistency
+    test_enthalpy_convergence
+    test_findRegion
+    test_H2ONaCl_LUT
+    test_negative_saturation
+    test_pHX_boundary
+    test_pHX_saturated_steam
+    test_physical_limit_trace_salinity
+    test_physical_limit_X_0001
+    test_prop_pHX_bisection
+    test_scan_negative_saturation
+    test_supercritical_viscosity
+    test_viscosity_pH_line
+    test_water_mu_diagnostic
+    test_water_mu_direct
+)
+
+foreach(test IN LISTS Tests)
+    message(STATUS "Add test ${test}")
+    add_executable(${test} ${SC_FILES} "test/${test}.cpp")
+    target_link_libraries(${test} ${LIBomp})
+    add_test(NAME ${test} COMMAND ${test})
+    install(TARGETS ${test} DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+endforeach()
 
 message(STATUS "")
 message(STATUS "SWEOS ${SWEOS_VERSION} has been configured for ${SWEOS_OS}")

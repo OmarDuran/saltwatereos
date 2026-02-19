@@ -5850,3 +5850,10 @@ namespace H2ONaCl
         return (LookUpTableForest_3D*)m_pLUT;
     };
 }
+
+// Explicit template instantiations to ensure all constructors are available for linking
+namespace LOOKUPTABLE_FOREST
+{
+    template class LookUpTableForest<2, H2ONaCl::FIELD_DATA<2>>;
+    template class LookUpTableForest<3, H2ONaCl::FIELD_DATA<3>>;
+}

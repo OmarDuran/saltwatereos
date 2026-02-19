@@ -778,7 +778,7 @@ int main()
         H2ONaCl::PROP_H2ONaCl prop_pTX = eos.prop_pTX(P_sat_Pa, T_K, X_boundary);
         
         // Test X=0.0001 with pHX (bisection)
-        H2ONaCl::PROP_H2ONaCl prop_pHX = eos.prop_pHX(P_sat_Pa, H_v_sat, X_boundary);
+        H2ONaCl::PROP_H2ONaCl prop_pHX = eos.prop_pHX_bisection(P_sat_Pa, H_v_sat, X_boundary);
         
         if(isnan(prop_pTX.Rho) || isnan(prop_pHX.Rho)) {
             sat_failures++;

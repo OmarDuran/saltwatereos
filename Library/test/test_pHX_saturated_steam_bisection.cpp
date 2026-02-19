@@ -217,7 +217,7 @@ int main()
         H2ONaCl::PROP_H2ONaCl prop_pTX = eos.prop_pTX(P_sat_Pa, T_K, X_test, false);
         
         // Test with prop_pHX
-        H2ONaCl::PROP_H2ONaCl prop_pHX = eos.prop_pHX(P_sat_Pa, H_v_sat, X_test);
+        H2ONaCl::PROP_H2ONaCl prop_pHX = eos.prop_pHX_bisection(P_sat_Pa, H_v_sat, X_test);
         
         double rho_diff = fabs(prop_pTX.Rho - prop_pHX.Rho) / prop_pTX.Rho * 100.0;
         

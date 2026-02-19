@@ -1069,13 +1069,18 @@ namespace H2ONaCl
         }
 
         // Final Viscosity calculation (now that T is known)
+        // Use the proper calcViscosity function to get correct liquid and vapor viscosities
         calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
         
-        // Final bulk Mu blending
+        // Final bulk Mu blending based on mass fractions
         if (prop.Rho > 1e-6) {
             double x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
-            if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V) {
+            if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V || prop.Region == TwoPhase_L_V_X0) {
                  prop.Mu = (1.0 - x_v) * prop.Mu_l + x_v * prop.Mu_v;
+            } else if (prop.Region == SinglePhase_L) {
+                prop.Mu = prop.Mu_l;
+            } else if (prop.Region == SinglePhase_V) {
+                prop.Mu = prop.Mu_v;
             }
         }
         
@@ -1159,6 +1164,23 @@ namespace H2ONaCl
                     
                     // Update region
                     prop.Region = SinglePhase_V;
+                }
+            }
+            
+            // IMPORTANT: Recalculate viscosity after modifying phase properties
+            // The FINAL CHECK section may have changed region, saturations, or phase densities
+            // so we need to recalculate viscosities to match the updated state
+            calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
+            
+            // Recalculate bulk viscosity based on updated phase viscosities
+            if (prop.Rho > 1e-6) {
+                double x_v = (prop.S_v * prop.Rho_v) / prop.Rho;
+                if (prop.Region == TwoPhase_V_L_L || prop.Region == TwoPhase_V_L_V || prop.Region == TwoPhase_L_V_X0) {
+                     prop.Mu = (1.0 - x_v) * prop.Mu_l + x_v * prop.Mu_v;
+                } else if (prop.Region == SinglePhase_L) {
+                    prop.Mu = prop.Mu_l;
+                } else if (prop.Region == SinglePhase_V) {
+                    prop.Mu = prop.Mu_v;
                 }
             }
         }

@@ -14,16 +14,12 @@ int main()
     const double X_pure = 0.0;
     
     cout << "========================================================================\n";
-    cout << "Direct Test: cH2ONaCl::prop_pHX_bisection(p, H, X_wt)\n";
+    cout << "Comprehensive Test: prop_pHX_bisection on Saturated Steam Curve\n";
     cout << "========================================================================\n\n";
-    cout << "Function signature: PROP_H2ONaCl prop_pHX_bisection(double p, double H, double X_wt)\n\n";
     cout << "Testing at X = 0.0001 (0.01 wt%)\n";
-    cout << "Test Strategy:\n";
-    cout << "  1. Test on saturated vapor line (H = H_v at saturation)\n";
-    cout << "  2. Test on saturated liquid line (H = H_l at saturation)\n";
-    cout << "  3. Test in two-phase region (H_l < H < H_v)\n";
-    cout << "  4. Test in superheated vapor region (H > H_v)\n";
-    cout << "  5. Test in compressed liquid region (H < H_l)\n\n";
+    cout << "Objective: Verify S_v = 1.0 along entire saturation curve\n";
+    cout << "Method: Use IAPWS H_v at saturation, call prop_pHX_bisection\n";
+    cout << "Expected: Region=2 (vapor), S_v=1.0, S_l=0.0 at all points\n\n";
     
     // Test along saturation curve with dense temperature sampling
     vector<double> test_temps;
@@ -110,7 +106,7 @@ int main()
         
         // Calculate errors
         double rho_diff = fabs(prop_pHX.Rho - prop_iapws.Rho_v) / prop_iapws.Rho_v * 100.0;
-        double T_diff = fabs(prop_pHX.T - T_K);  // Temperature difference in K
+        double T_diff = fabs(prop_pHX.T - T_C);  // Temperature difference in °C (prop_pHX.T is in Celsius)
         
         max_rho_diff = max(max_rho_diff, rho_diff);
         max_T_diff = max(max_T_diff, T_diff);

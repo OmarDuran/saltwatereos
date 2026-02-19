@@ -43,11 +43,11 @@ int main()
     }
     
     cout << "Test Grid:\n";
-    cout << "  Salinity (X):  " << X_values.size() << " points from " 
+    cout << "  Salinity (X):  " << X_values.size() << " points from "
          << fixed << setprecision(4) << X_values[0] << " to " << X_values.back() << "\n";
-    cout << "  Pressure (P):  " << P_values_bar.size() << " points from " 
+    cout << "  Pressure (P):  " << P_values_bar.size() << " points from "
          << setprecision(1) << P_values_bar[0] << " to " << P_values_bar.back() << " bar\n";
-    cout << "  Enthalpy (H):  " << H_values_kJ.size() << " points from " 
+    cout << "  Enthalpy (H):  " << H_values_kJ.size() << " points from "
          << setprecision(0) << H_values_kJ[0] << " to " << H_values_kJ.back() << " kJ/kg\n";
     cout << "  Total tests:   " << (X_values.size() * P_values_bar.size() * H_values_kJ.size()) << "\n\n";
     
@@ -131,7 +131,7 @@ int main()
                     status = "EXCEPTION";
                     prop.T = 0.0;
                     prop.Rho = 0.0;
-                    prop.Region = -1;
+                    prop.Region = H2ONaCl::UnknownPhaseRegion;
                 }
                 
                 // Print results for failed tests or at intervals
@@ -156,9 +156,9 @@ int main()
     cout << "Test Summary:\n";
     cout << "=============\n";
     cout << "  Total tests:           " << total_tests << "\n";
-    cout << "  Converged successfully: " << converged_tests 
+    cout << "  Converged successfully: " << converged_tests
          << " (" << fixed << setprecision(2) << (100.0 * converged_tests / total_tests) << "%)\n";
-    cout << "  Failed tests:          " << failed_tests 
+    cout << "  Failed tests:          " << failed_tests
          << " (" << setprecision(2) << (100.0 * failed_tests / total_tests) << "%)\n";
     cout << "    - NaN results:       " << nan_tests << "\n";
     cout << "    - Invalid region:    " << invalid_region_tests << "\n";
@@ -195,8 +195,8 @@ int main()
                 try {
                     H2ONaCl::PROP_H2ONaCl prop = eos.prop_pHX_bisection(P_Pa, H_J, X_wt);
                     
-                    if(!isnan(prop.Rho) && !isnan(prop.T) && prop.Rho > 0.0 && 
-                       prop.T >= -50.0 && prop.T <= 1100.0 && 
+                    if(!isnan(prop.Rho) && !isnan(prop.T) && prop.Rho > 0.0 &&
+                       prop.T >= -50.0 && prop.T <= 1100.0 &&
                        prop.Region >= 0 && prop.Region <= 10) {
                         X_success++;
                     } else {
@@ -226,7 +226,7 @@ int main()
         return 0;
     } else if(failed_tests < total_tests * 0.05) {
         cout << "⚠ MOSTLY PASSED ⚠\n";
-        cout << "Most tests passed (" << setprecision(2) << (100.0 * converged_tests / total_tests) 
+        cout << "Most tests passed (" << setprecision(2) << (100.0 * converged_tests / total_tests)
              << "%), but some failures detected.\n";
         cout << "Review failed tests to determine if they are in physically valid regions.\n";
         return 1;

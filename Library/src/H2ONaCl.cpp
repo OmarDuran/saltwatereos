@@ -2772,7 +2772,8 @@ namespace H2ONaCl
 
             // --- THE DENSITY GUARD ---
             // Only apply guard if we have valid saturation densities (below critical P)
-            if (has_valid_sat && (std::isnan(Rho_star_v) || Rho_star_v > rl_sat)) {
+            // Use >= instead of > to catch cases where Rho_star_v equals rl_sat (boundary case)
+            if (has_valid_sat && (std::isnan(Rho_star_v) || Rho_star_v >= rl_sat)) {
                 Rho_star_v = rv_sat;
             }
             // Above critical P, just check for NaN and use a reasonable fallback

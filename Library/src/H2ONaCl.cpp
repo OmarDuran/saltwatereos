@@ -215,9 +215,14 @@ namespace H2ONaCl
         T1 *= T_scale_down;
         T2 *= T_scale_up;
         
-        // Clamp to valid temperature range [0.1, 1000]°C
-        T1 = std::max(0.1, std::min(1000.0, T1));
-        T2 = std::max(0.1, std::min(1000.0, T2));
+        // Temperature limits depend on salinity
+        // For low salinity (X <= 0.001), use strict 1000°C limit to preserve fixes
+        // For higher salinity, allow extrapolation to 1100°C for boundary continuity
+        double T_max_allowed = (X_wt <= 0.001) ? 1000.0 : 1100.0;
+        
+        // Clamp to valid temperature range [0.1, T_max_allowed]°C
+        T1 = std::max(0.1, std::min(T_max_allowed, T1));
+        T2 = std::max(0.1, std::min(T_max_allowed, T2));
         
         // cout<<"T1: "<<T1<<" T2: "<<T2<<endl;
         PROP_H2ONaCl prop1, prop2;
@@ -234,7 +239,7 @@ namespace H2ONaCl
             prop22=prop_pTX(p,T2+Kelvin,X_wt, false);
             h2 = prop22.H;
             h_l = prop22.H_l;
-            if(h2<H && T2>1000) break;
+            if(h2<H && T2>T_max_allowed) break;
             if(X_wt==0) break;
         }
         
@@ -249,7 +254,7 @@ namespace H2ONaCl
             prop1=prop_pTX(p,T1+Kelvin,X_wt, false);
             h1=prop1.H;
         }
-        if((T2 > 1000 || h1 > H) || (h2 < H && T2 == 1000  && p >= 1.7e7) )
+        if((T2 > T_max_allowed || h1 > H) || (h2 < H && T2 == T_max_allowed && p >= 1.7e7) )
         {
             prop.Region=UnknownPhaseRegion;
             prop.Rho=NAN;
@@ -281,8 +286,8 @@ namespace H2ONaCl
                 double T_new=0;
                 T_new = (T1 +  T2) / 2;
                 
-                // Safety: clamp to valid range [0.1, 1000]°C
-                T_new = std::max(0.1, std::min(1000.0, T_new));
+                // Safety: clamp to valid range [0.1, T_max_allowed]°C
+                T_new = std::max(0.1, std::min(T_max_allowed, T_new));
                 
                 if (isnan(T_new))
                 {
@@ -661,7 +666,8 @@ namespace H2ONaCl
     void cH2ONaCl::expand_bounds_PhX(double p, double H, double X_wt, double& T_low, double& T_high)
     {
         const double T_ABS_MIN = 0.01;   // 0.01 C
-        const double T_ABS_MAX = 1000.0; // 1000 C
+        // Adaptive max temperature based on salinity
+        const double T_ABS_MAX = (X_wt <= 0.001) ? 1000.0 : 1100.0;
         double dT = 25.0;                // Expansion step size
         
         // Critical point constants for pure water
@@ -742,14 +748,19 @@ namespace H2ONaCl
         // 1. INITIAL BRACKETING
         guess_T_PhX(p, H, X_wt, T1, T2);
 
-        // Ensure initial bounds respect valid temperature range [0.1, 1000]°C
-        T1 = std::max(0.1, std::min(1000.0, T1));
-        T2 = std::max(0.1, std::min(1000.0, T2));
+        // Temperature limits depend on salinity
+        // For low salinity (X <= 0.001), use strict 1000°C limit to preserve fixes
+        // For higher salinity, allow extrapolation to 1100°C for boundary continuity
+        double T_max_allowed = (X_wt <= 0.001) ? 1000.0 : 1100.0;
+
+        // Ensure initial bounds respect valid temperature range [0.1, T_max_allowed]°C
+        T1 = std::max(0.1, std::min(T_max_allowed, T1));
+        T2 = std::max(0.1, std::min(T_max_allowed, T2));
         
         // Ensure T1 < T2
         if(T1 >= T2) {
             T1 = 0.1;
-            T2 = 1000.0;
+            T2 = T_max_allowed;
         }
 
         double T_low = T1;
@@ -778,7 +789,7 @@ namespace H2ONaCl
             } else if (H > PROP_low.H && H > PROP_high.H) {
                 // H is above both bounds - expand upward
                 double T_new = T_high + (T_high - T_low);
-                T_new = std::min(1000.0, T_new);  // Don't go above 1000°C (valid range maximum)
+                T_new = std::min(T_max_allowed, T_new);  // Don't go above T_max_allowed
                 PROP_low = PROP_high;
                 T_low = T_high;
                 T_high = T_new;
@@ -792,7 +803,7 @@ namespace H2ONaCl
         if ((PROP_low.H - H) * (PROP_high.H - H) >= 0) {
             // Fallback to wide temperature range
             if (X_wt < 1e-6) {
-                T_low = 0.1; T_high = 1000.0;  // Use valid temperature range [0.1, 1000]°C
+                T_low = 0.1; T_high = T_max_allowed;  // Use valid temperature range
                 PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
                 PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
                 

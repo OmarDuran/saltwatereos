@@ -792,6 +792,29 @@ namespace H2ONaCl
                  prop.Mu = (1.0 - x_v) * prop.Mu_l + x_v * prop.Mu_v;
             }
         }
+        
+        // ========================================================================
+        // FINAL CHECK: Ultra-low salinity supercritical vapor-like detection
+        // Ensure consistency with prop_pTX for ultra-low salinity
+        // ========================================================================
+        if(X_wt < 0.001 && prop.Region == SinglePhase_L) {
+            // For ultra-low salinity, check if this should be vapor-like supercritical
+            SupercriticalRegionInfo scInfo = detectSupercriticalRegion(prop.T, p, X_wt, Xwt2Xmol(X_wt));
+            
+            if(scInfo.isSupercritical && scInfo.isVaporLike) {
+                // Switch to vapor-like representation
+                prop.S_v = 1.0;
+                prop.S_l = 0.0;
+                
+                // Swap properties for continuity
+                std::swap(prop.Rho_l, prop.Rho_v);
+                std::swap(prop.H_l, prop.H_v);
+                std::swap(prop.X_l, prop.X_v);
+                
+                // Update region
+                prop.Region = SinglePhase_V;
+            }
+        }
 
         return prop;
     }

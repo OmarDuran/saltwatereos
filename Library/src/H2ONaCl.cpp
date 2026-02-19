@@ -1865,12 +1865,27 @@ namespace H2ONaCl
 
       // 4. Equilibrium Salinities with Clamping logic
       double Xv = X_VaporLiquidCoexistSurface_VaporBranch(T, Pres_bar);
-      Xv = std::max(0.0, std::min(X_crit_mol - 1e-12, Xv));
-      // Use mixture critical pressure, not pure water critical pressure
-      if (std::isnan(Xv) || Pres_bar > (P_crit_bar + 0.1)) Xv = 0.0;
+      
+      // Only clamp to critical salinity if T >= T_Critic (where X_crit is defined)
+      // For T < T_Critic, X_crit_mol = 0, so we shouldn't clamp against it
+      // The bug was that std::min(X_crit_mol - 1e-12, Xv) with X_crit_mol=0
+      // would force Xv to become negative, then max(0, ...) would zero it out
+      if (T >= H2O::T_Critic && X_crit_mol > 0) {
+          Xv = std::max(0.0, std::min(X_crit_mol - 1e-12, Xv));
+      } else {
+          Xv = std::max(0.0, Xv);  // Only ensure non-negative
+      }
+      
+      // Only set to zero if NaN (correlation failed)
+      if (std::isnan(Xv)) Xv = 0.0;
 
       double Xl = X_VaporLiquidCoexistSurface_LiquidBranch(T, Pres_bar);
-      Xl = std::max(X_crit_mol + 1e-12, Xl);
+      
+      // Similar fix for Xl clamping
+      if (T >= H2O::T_Critic && X_crit_mol > 0) {
+          Xl = std::max(X_crit_mol + 1e-12, Xl);
+      }
+      // For T < T_Critic, don't clamp Xl (it's already properly calculated)
 
       // 5. Region Assignment
       PhaseRegion region_ind = SinglePhase_L;

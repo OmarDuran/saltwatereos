@@ -500,7 +500,7 @@ namespace H2ONaCl
         init_prop(prop);
         prop.P = p; prop.H = H; prop.X_wt = X_wt;
 
-        const double tol = 1e-7;
+        const double tol = 1e-8;
         const int max_iter = 1000;
         double T1, T2;
         
@@ -1490,22 +1490,22 @@ namespace H2ONaCl
           }
           
           // For non-supercritical ultra-low salinity, use IAPWS-based detection
-          // but allow falling through to two-phase logic if near saturation
           double Psat_H2O_bar = m_water.P_Boiling(T);
-          double P_margin = Psat_H2O_bar * 0.1 * X_wt_approx / 0.001;  // Proportional margin
           
-          if (Pres_bar > Psat_H2O_bar + P_margin) {
+          // For ultra-low salinity, treat at/near saturation as single-phase vapor
+          // to match IAPWS behavior (no two-phase region for trace salinity)
+          if (Pres_bar > Psat_H2O_bar * 1.01) {
               // Well above saturation: single phase liquid
               Xl_all = X_mol;
               Xv_all = 0.0;
               return SinglePhase_L;
-          } else if (Pres_bar < Psat_H2O_bar - P_margin) {
-              // Well below saturation: single phase vapor
+          } else {
+              // At or below saturation: single phase vapor (matches IAPWS)
+              // For ultra-low salinity, the two-phase region is infinitesimally small
               Xl_all = 0.0;
               Xv_all = X_mol;
               return SinglePhase_V;
           }
-          // Otherwise, fall through to normal two-phase logic
       }
       
       // ========================================================================

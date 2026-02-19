@@ -24,18 +24,18 @@ int main()
     // Test along saturation curve with dense temperature sampling
     vector<double> test_temps;
     
-    // Low temperature range (10-200°C): every 5°C
-    for(double T = 10.0; T <= 200.0; T += 5.0) {
+    // Low temperature range (10-200°C): every 1°C
+    for(double T = 10.0; T <= 200.0; T += 1.0) {
         test_temps.push_back(T);
     }
     
-    // Mid temperature range (200-300°C): every 2°C
-    for(double T = 202.0; T <= 300.0; T += 2.0) {
+    // Mid temperature range (200-300°C): every 0.5°C
+    for(double T = 200.5; T <= 300.0; T += 0.5) {
         test_temps.push_back(T);
     }
     
-    // High temperature range (300-373°C): every 1°C (near critical)
-    for(double T = 301.0; T <= 373.0; T += 1.0) {
+    // High temperature range (300-373°C): every 0.1°C (near critical)
+    for(double T = 300.1; T <= 373.0; T += 0.1) {
         test_temps.push_back(T);
     }
     

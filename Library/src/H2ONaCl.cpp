@@ -207,7 +207,8 @@ namespace H2ONaCl
         init_prop(prop);
         prop.P=p; prop.H=H; prop.X_wt=X_wt;
         double T1, T2;
-        double tol=1e-3;
+        double tol=1e-4;  // Tighter tolerance for better accuracy (0.01%)
+        double T_tol = 1e-3;  // Temperature convergence tolerance (0.001°C)
         double T_scale_up = 1.5;
         double T_scale_down = 0.5;
         guess_T_PhX(p, H, X_wt, T1, T2);
@@ -407,9 +408,35 @@ namespace H2ONaCl
                 prop.X_l = PROP_new.X_l;
                 prop.X_v = PROP_new.X_v;
 
-                if(fabs(PROP_new.H - H)/H  < tol)
+                // Convergence check: require BOTH enthalpy and temperature convergence
+                double H_error = fabs(PROP_new.H - H) / fabs(H);
+                double T_interval = fabs(T2 - T1);
+                
+                // Adaptive tolerance based on enthalpy flatness
+                // At high T, dH/dT is small, so we need tighter T convergence
+                double dH_dT = fabs(h2 - h1) / std::max(T_interval, 1e-10);
+                double effective_T_tol = T_tol;
+                double effective_H_tol = tol;
+                
+                if(dH_dT < 1000.0) {  // < 1 kJ/kg/K is flat region
+                    effective_T_tol = 5e-4;  // 0.0005°C (0.5 mK) - very tight for flat regions
+                    effective_H_tol = tol * 0.5;  // Somewhat tighter H tolerance
+                }
+                
+                bool H_converged = (H_error < effective_H_tol);
+                bool T_converged = (T_interval < effective_T_tol);
+                
+                if(H_converged && T_converged)
                 {
                     ind_iter=false;
+                }
+                
+                // Safety: after many iterations, check if we're making progress
+                // Don't exit early in flat regions - keep iterating until T converges
+                if(iteri > 500 && T_interval < 1e-4)
+                {
+                    // Only allow early exit if T interval is very small
+                    ind_iter = false;
                 }
                 if(prop.H> H)
                 {
@@ -428,7 +455,7 @@ namespace H2ONaCl
                 // h2( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];
                 
                 // ind_iter( abs(PROP_new.h - h(ind_iter))./h(ind_iter)  < tol ) = [];
-                if(iteri>=500)
+                if(iteri>=1000)  // Increased from 500 for better convergence in flat regions
                 {
                     ind_iter=false;
                     break;
@@ -541,6 +568,88 @@ namespace H2ONaCl
         
         // calculate dynamic viscosity
         calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
+
+        // ========================================================================
+        // FINAL CHECK: Ultra-low salinity region consistency with IAPWS
+        // At trace salinity, system should behave like pure water
+        // ========================================================================
+        if(X_wt < 0.001) {
+            // Check if P is below critical pressure for pure water
+            const double P_crit_Pa = 22.064e6;
+            
+            if(p < P_crit_Pa) {
+                // Subcritical: check against saturation curve
+                double T_sat_iapws_C, Rho_l_iapws, H_l_iapws, H_v_iapws;
+                double dpd_l_iapws, dpd_v_iapws, Rho_v_iapws, Mu_l_iapws, Mu_v_iapws;
+                
+                fluidProp_crit_P(p, 1e-12, T_sat_iapws_C, Rho_l_iapws, H_l_iapws, H_v_iapws,
+                               dpd_l_iapws, dpd_v_iapws, Rho_v_iapws, Mu_l_iapws, Mu_v_iapws);
+                
+                // Check where H falls relative to saturation enthalpies
+                // Use small absolute tolerance for enthalpy comparison (0.1 kJ/kg)
+                const double H_tol = 100.0;  // J/kg
+                
+                if(H > (H_v_iapws - H_tol)) {
+                    // H >= H_v: Superheated vapor
+                    prop.Region = SinglePhase_V;
+                    prop.S_v = 1.0;
+                    prop.S_l = 0.0;
+                    // Keep converged density and temperature, but mark as vapor
+                    prop.Rho_v = prop.Rho;
+                    prop.Rho_l = 0.0;
+                    prop.H_v = H;
+                    prop.H_l = 0.0;
+                    prop.X_v = X_wt;
+                    prop.X_l = 0.0;
+                } else if(H < (H_l_iapws + H_tol)) {
+                    // H <= H_l: Subcooled liquid
+                    prop.Region = SinglePhase_L;
+                    prop.S_l = 1.0;
+                    prop.S_v = 0.0;
+                    // Keep converged density and temperature, but mark as liquid
+                    prop.Rho_l = prop.Rho;
+                    prop.Rho_v = 0.0;
+                    prop.H_l = H;
+                    prop.H_v = 0.0;
+                    prop.X_l = X_wt;
+                    prop.X_v = 0.0;
+                } else {
+                    // H_l < H < H_v: Two-phase
+                    prop.Region = TwoPhase_L_V_X0;
+                    double S_l_sat = (Rho_v_iapws * (H_v_iapws - H)) /
+                                    (Rho_v_iapws * (H_v_iapws - H) + Rho_l_iapws * (H - H_l_iapws));
+                    S_l_sat = std::max(0.0, std::min(1.0, S_l_sat));
+                    prop.S_l = S_l_sat;
+                    prop.S_v = 1.0 - S_l_sat;
+                    prop.Rho = prop.S_l * Rho_l_iapws + prop.S_v * Rho_v_iapws;
+                    prop.Rho_l = Rho_l_iapws;
+                    prop.Rho_v = Rho_v_iapws;
+                    prop.H_l = H_l_iapws;
+                    prop.H_v = H_v_iapws;
+                    prop.T = T_sat_iapws_C;
+                    prop.X_l = X_wt;
+                    prop.X_v = X_wt;
+                }
+            } else {
+                // Supercritical pressure
+                // For ultra-low salinity, check if this should be vapor-like supercritical
+                SupercriticalRegionInfo scInfo = detectSupercriticalRegion(prop.T, p, X_wt, Xwt2Xmol(X_wt));
+                
+                if(scInfo.isSupercritical && scInfo.isVaporLike && prop.Region == SinglePhase_L) {
+                    // Switch to vapor-like representation
+                    prop.S_v = 1.0;
+                    prop.S_l = 0.0;
+                    
+                    // Swap properties for continuity
+                    std::swap(prop.Rho_l, prop.Rho_v);
+                    std::swap(prop.H_l, prop.H_v);
+                    std::swap(prop.X_l, prop.X_v);
+                    
+                    // Update region
+                    prop.Region = SinglePhase_V;
+                }
+            }
+        }
 
         return prop;
     }
@@ -778,12 +887,15 @@ namespace H2ONaCl
             // For flat enthalpy regions (high T, low dH/dT), need much tighter temperature convergence
             // to achieve acceptable temperature accuracy
             double effective_temp_tol = temp_tol;
+            double effective_H_tol = adaptive_tol;
+            
             if(dH_dT < 1000.0) {  // < 1 kJ/kg/K indicates flat region (typical at high T)
-                effective_temp_tol = 1e-2;  // 0.01°C when enthalpy is flat
+                effective_temp_tol = 1e-3;  // 0.001°C when enthalpy is flat (1 mK)
+                effective_H_tol = adaptive_tol * 0.1;  // Tighter H tolerance in flat regions
             }
             
             // Convergence: require both enthalpy AND temperature to be within tolerance
-            bool H_converged = (H_error < adaptive_tol * H_ref);
+            bool H_converged = (H_error < effective_H_tol * H_ref);
             bool T_converged = (T_interval < effective_temp_tol);
             
             if (H_converged && T_converged) {
@@ -796,6 +908,12 @@ namespace H2ONaCl
                 if(H_error < adaptive_tol * H_ref * 100) {
                     break;
                 }
+            }
+            
+            // Safety: if too many iterations in flat region, accept if temperature is tight enough
+            if(iter > 100 && dH_dT < 1000.0 && T_interval < 1e-2) {
+                // In very flat regions after many iterations, temperature convergence is key
+                break;
             }
 
             // Update Brackets with safeguard for non-monotonic behavior
@@ -962,25 +1080,86 @@ namespace H2ONaCl
         }
         
         // ========================================================================
-        // FINAL CHECK: Ultra-low salinity supercritical vapor-like detection
+        // FINAL CHECK: Ultra-low salinity region consistency
         // Ensure consistency with prop_pTX for ultra-low salinity
+        // At trace salinity, system behaves like pure water (IAPWS)
         // ========================================================================
-        if(X_wt < 0.001 && prop.Region == SinglePhase_L) {
-            // For ultra-low salinity, check if this should be vapor-like supercritical
-            SupercriticalRegionInfo scInfo = detectSupercriticalRegion(prop.T, p, X_wt, Xwt2Xmol(X_wt));
+        if(X_wt < 0.001) {
+            // Check if P is below critical pressure for pure water
+            const double P_crit_Pa = 22.064e6;
             
-            if(scInfo.isSupercritical && scInfo.isVaporLike) {
-                // Switch to vapor-like representation
-                prop.S_v = 1.0;
-                prop.S_l = 0.0;
+            if(p < P_crit_Pa) {
+                // Subcritical: check against saturation curve
+                // Get IAPWS saturation properties at this pressure
+                double T_sat_iapws_C, Rho_l_iapws, H_l_iapws, H_v_iapws;
+                double dpd_l_iapws, dpd_v_iapws, Rho_v_iapws, Mu_l_iapws, Mu_v_iapws;
                 
-                // Swap properties for continuity
-                std::swap(prop.Rho_l, prop.Rho_v);
-                std::swap(prop.H_l, prop.H_v);
-                std::swap(prop.X_l, prop.X_v);
+                fluidProp_crit_P(p, 1e-12, T_sat_iapws_C, Rho_l_iapws, H_l_iapws, H_v_iapws,
+                               dpd_l_iapws, dpd_v_iapws, Rho_v_iapws, Mu_l_iapws, Mu_v_iapws);
                 
-                // Update region
-                prop.Region = SinglePhase_V;
+                // Check where H falls relative to saturation enthalpies
+                // Use small absolute tolerance for enthalpy comparison (0.1 kJ/kg)
+                const double H_tol = 100.0;  // J/kg
+                
+                if(H > (H_v_iapws - H_tol)) {
+                    // H >= H_v: Superheated vapor
+                    prop.Region = SinglePhase_V;
+                    prop.S_v = 1.0;
+                    prop.S_l = 0.0;
+                    // Keep converged density and temperature, but mark as vapor
+                    prop.Rho_v = prop.Rho;
+                    prop.Rho_l = 0.0;
+                    prop.H_v = H;
+                    prop.H_l = 0.0;
+                    prop.X_v = X_wt;
+                    prop.X_l = 0.0;
+                } else if(H < (H_l_iapws + H_tol)) {
+                    // H <= H_l: Subcooled liquid
+                    prop.Region = SinglePhase_L;
+                    prop.S_l = 1.0;
+                    prop.S_v = 0.0;
+                    // Keep converged density and temperature, but mark as liquid
+                    prop.Rho_l = prop.Rho;
+                    prop.Rho_v = 0.0;
+                    prop.H_l = H;
+                    prop.H_v = 0.0;
+                    prop.X_l = X_wt;
+                    prop.X_v = 0.0;
+                } else {
+                    // H_l < H < H_v: Two-phase
+                    prop.Region = TwoPhase_L_V_X0;
+                    double S_l_sat = (Rho_v_iapws * (H_v_iapws - H)) /
+                                    (Rho_v_iapws * (H_v_iapws - H) + Rho_l_iapws * (H - H_l_iapws));
+                    S_l_sat = std::max(0.0, std::min(1.0, S_l_sat));
+                    prop.S_l = S_l_sat;
+                    prop.S_v = 1.0 - S_l_sat;
+                    prop.Rho = prop.S_l * Rho_l_iapws + prop.S_v * Rho_v_iapws;
+                    prop.Rho_l = Rho_l_iapws;
+                    prop.Rho_v = Rho_v_iapws;
+                    prop.H_l = H_l_iapws;
+                    prop.H_v = H_v_iapws;
+                    prop.T = T_sat_iapws_C;
+                    prop.X_l = X_wt;
+                    prop.X_v = X_wt;
+                }
+            } else {
+                // Supercritical pressure
+                // For ultra-low salinity, check if this should be vapor-like supercritical
+                SupercriticalRegionInfo scInfo = detectSupercriticalRegion(prop.T, p, X_wt, Xwt2Xmol(X_wt));
+                
+                if(scInfo.isSupercritical && scInfo.isVaporLike && prop.Region == SinglePhase_L) {
+                    // Switch to vapor-like representation
+                    prop.S_v = 1.0;
+                    prop.S_l = 0.0;
+                    
+                    // Swap properties for continuity
+                    std::swap(prop.Rho_l, prop.Rho_v);
+                    std::swap(prop.H_l, prop.H_v);
+                    std::swap(prop.X_l, prop.X_v);
+                    
+                    // Update region
+                    prop.Region = SinglePhase_V;
+                }
             }
         }
 

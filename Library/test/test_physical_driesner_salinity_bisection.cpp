@@ -18,10 +18,10 @@ int main()
     cout << "Testing: prop_pHX_bisection(P, H, X_wt)\n\n";
     
     // Define test grid
-    // Salinity: 10 points from 0.0001 to 0.2 (0.01% to 20%)
+    // Salinity: 50 points from 0.0001 to 0.2 (0.01% to 20%)
     vector<double> X_values;
-    for(int i = 0; i < 10; i++) {
-        double X = 0.0001 + i * (0.2 - 0.0001) / 9.0;
+    for(int i = 0; i < 50; i++) {
+        double X = 0.0001 + i * (0.2 - 0.0001) / 49.0;
         X_values.push_back(X);
     }
     
@@ -30,15 +30,15 @@ int main()
     vector<double> P_values_bar;
     double P_min_bar = 60.0;   // 6 MPa
     double P_max_bar = 5100.0; // 510 MPa
-    for(int i = 0; i < 10; i++) {
-        double log_P = log10(P_min_bar) + i * (log10(P_max_bar) - log10(P_min_bar)) / 9.0;
+    for(int i = 0; i < 50; i++) {
+        double log_P = log10(P_min_bar) + i * (log10(P_max_bar) - log10(P_min_bar)) / 49.0;
         P_values_bar.push_back(pow(10.0, log_P));
     }
     
-    // Enthalpy: 10 points from 600 to 3500 kJ/kg
+    // Enthalpy: 50 points from 600 to 3500 kJ/kg
     vector<double> H_values_kJ;
-    for(int i = 0; i < 10; i++) {
-        double H_kJ = 600.0 + i * (3500.0 - 600.0) / 9.0;
+    for(int i = 0; i < 50; i++) {
+        double H_kJ = 600.0 + i * (3500.0 - 600.0) / 49.0;
         H_values_kJ.push_back(H_kJ);
     }
     
@@ -71,7 +71,7 @@ int main()
     cout << string(100, '-') << "\n";
     
     int test_num = 0;
-    int print_interval = 100; // Print every 100th test or failures
+    int print_interval = 5000; // Print every 5000th test or failures
     
     for(size_t iX = 0; iX < X_values.size(); iX++) {
         double X_wt = X_values[iX];

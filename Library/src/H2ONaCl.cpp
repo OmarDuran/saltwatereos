@@ -645,6 +645,10 @@ namespace H2ONaCl
                     std::swap(prop.H_l, prop.H_v);
                     std::swap(prop.X_l, prop.X_v);
                     
+                    // CRITICAL: Recalculate bulk density after swapping
+                    // Now S_v=1 and Rho_v contains the actual density
+                    prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v;
+                    
                     // Update region
                     prop.Region = SinglePhase_V;
                 }
@@ -1162,6 +1166,10 @@ namespace H2ONaCl
                     std::swap(prop.H_l, prop.H_v);
                     std::swap(prop.X_l, prop.X_v);
                     
+                    // CRITICAL: Recalculate bulk density after swapping
+                    // Now S_v=1 and Rho_v contains the actual density
+                    prop.Rho = prop.S_l * prop.Rho_l + prop.S_v * prop.Rho_v;
+                    
                     // Update region
                     prop.Region = SinglePhase_V;
                 }
@@ -1520,8 +1528,12 @@ namespace H2ONaCl
                     prop.S_v = 1.0;
                     prop.S_l = 0.0;
                     
-                    // Swap liquid and vapor properties for continuity
-                    std::swap(prop.Rho_l, prop.Rho_v);
+                    // For ultra-low salinity, use IAPWS density directly instead of Driesner correlation
+                    // to ensure consistency with pure water
+                    prop.Rho_v = scInfo.density;  // This is from IAPWS-95 via water_rho_pT
+                    prop.Rho_l = 0.0;  // No liquid phase
+                    
+                    // Swap enthalpies and salinities
                     std::swap(prop.H_l, prop.H_v);
                     std::swap(prop.X_l, prop.X_v);
                     

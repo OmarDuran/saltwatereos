@@ -2776,6 +2776,17 @@ namespace H2ONaCl
             if (has_valid_sat && (std::isnan(Rho_star_v) || Rho_star_v >= rl_sat)) {
                 Rho_star_v = rv_sat;
             }
+            // Additional guard: If Rho_star_v is still suspiciously high (>100 kg/m³) for vapor,
+            // it means water_rho_pT returned liquid density. Try getting vapor density at saturation.
+            if (Rho_star_v > 100.0 && P_Pa < 22e6) {
+                // Call water_rho_pT at saturation temperature for this pressure
+                double T_sat_K = T_sat_p + Kelvin;
+                Rho_star_v = water_rho_pT(P_Pa, T_sat_K);
+                // If still bad, use rv_sat if available
+                if ((std::isnan(Rho_star_v) || Rho_star_v > 100.0) && has_valid_sat) {
+                    Rho_star_v = rv_sat;
+                }
+            }
             // Above critical P, just check for NaN and use a reasonable fallback
             else if (!has_valid_sat && std::isnan(Rho_star_v)) {
                 Rho_star_v = 100.0; // Typical supercritical vapor-like density

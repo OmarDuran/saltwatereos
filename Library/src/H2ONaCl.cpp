@@ -521,20 +521,56 @@ namespace H2ONaCl
 
         // 1. INITIAL BRACKETING
         guess_T_PhX(p, H, X_wt, T1, T2);
-        expand_bounds_PhX(p, H, X_wt, T1, T2); // Custom helper to force bracketing
 
         double T_low = T1;
         double T_high = T2;
         PROP_H2ONaCl PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
         PROP_H2ONaCl PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
 
+        // Expand bounds iteratively if they don't bracket H
+        const int max_expand = 20;
+        int expand_count = 0;
+        while (expand_count < max_expand) {
+            bool brackets = (PROP_low.H - H) * (PROP_high.H - H) < 0;
+            if (brackets) {
+                break;  // Bounds properly bracket H
+            }
+            
+            // Determine which direction to expand
+            if (H < PROP_low.H && H < PROP_high.H) {
+                // H is below both bounds - expand downward
+                double T_new = T_low - (T_high - T_low);
+                T_new = std::max(0.01, T_new);  // Don't go below 0.01°C
+                PROP_high = PROP_low;
+                T_high = T_low;
+                T_low = T_new;
+                PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
+            } else if (H > PROP_low.H && H > PROP_high.H) {
+                // H is above both bounds - expand upward
+                double T_new = T_high + (T_high - T_low);
+                T_new = std::min(1000.0, T_new);  // Don't go above 1000°C
+                PROP_low = PROP_high;
+                T_low = T_high;
+                T_high = T_new;
+                PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
+            }
+            
+            expand_count++;
+        }
+        
         // Safety: if after expansion we still don't bracket H
-        if ((H < PROP_low.H && H < PROP_high.H) || (H > PROP_low.H && H > PROP_high.H)) {
-            // Fallback to pure water limits if X is tiny
+        if ((PROP_low.H - H) * (PROP_high.H - H) >= 0) {
+            // Fallback to wide temperature range
             if (X_wt < 1e-6) {
                 T_low = 0.01; T_high = 1000.0;
                 PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
                 PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
+                
+                // If still not bracketing, return unknown region
+                if ((PROP_low.H - H) * (PROP_high.H - H) >= 0) {
+                    prop.Region = UnknownPhaseRegion;
+                    return prop;
+                }
             } else {
                 prop.Region = UnknownPhaseRegion;
                 return prop;

@@ -24,18 +24,18 @@ int main()
     // Test along saturation curve with dense temperature sampling
     vector<double> test_temps;
     
-    // Low temperature range (100-200°C): every 10°C
-    for(double T = 100.0; T <= 200.0; T += 10.0) {
+    // Low temperature range (10-200°C): every 5°C
+    for(double T = 10.0; T <= 200.0; T += 5.0) {
         test_temps.push_back(T);
     }
     
-    // Mid temperature range (200-300°C): every 5°C
-    for(double T = 205.0; T <= 300.0; T += 5.0) {
+    // Mid temperature range (200-300°C): every 2°C
+    for(double T = 202.0; T <= 300.0; T += 2.0) {
         test_temps.push_back(T);
     }
     
-    // High temperature range (300-370°C): every 2°C (near critical)
-    for(double T = 302.0; T <= 370.0; T += 2.0) {
+    // High temperature range (300-373°C): every 1°C (near critical)
+    for(double T = 301.0; T <= 373.0; T += 1.0) {
         test_temps.push_back(T);
     }
     
@@ -107,13 +107,14 @@ int main()
         // Calculate errors
         double rho_diff = fabs(prop_pHX.Rho - prop_iapws.Rho_v) / prop_iapws.Rho_v * 100.0;
         double T_diff = fabs(prop_pHX.T - T_C);  // Temperature difference in °C (prop_pHX.T is in Celsius)
-        
-        max_rho_diff = max(max_rho_diff, rho_diff);
-        max_T_diff = max(max_T_diff, T_diff);
+
+        // Update max errors
+        if(rho_diff > max_rho_diff) max_rho_diff = rho_diff;
+        if(T_diff > max_T_diff) max_T_diff = T_diff;
         
         // Check for issues
-        string status = "";
         bool has_error = false;
+        string status;
         
         // Check region
         if(prop_pHX.Region != 2) {

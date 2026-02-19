@@ -786,7 +786,7 @@ int main()
         }
         
         double rho_err = fabs(prop_pHX.Rho - prop_iapws.Rho_v) / prop_iapws.Rho_v * 100.0;
-        double T_err = fabs(prop_pHX.T - T_K) / T_K * 100.0;
+        double T_err = fabs((prop_pHX.T + 273.15) - T_K) / T_K * 100.0;
         
         max_sat_rho_err = max(max_sat_rho_err, rho_err);
         max_sat_T_err = max(max_sat_T_err, T_err);

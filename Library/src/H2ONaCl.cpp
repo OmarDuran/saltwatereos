@@ -441,6 +441,104 @@ namespace H2ONaCl
             cout<<"error, prop.T is nan in prop_pHX: "<<prop.T<<endl;
             exit(0);
         }
+        
+        // TWO-PHASE DETECTION FIX:
+        // At very low salinity, the phase diagram can have discontinuous transitions where
+        // prop_pTX jumps directly from liquid to vapor without returning a two-phase region.
+        // The target H may fall in this gap. We need to detect this and construct two-phase properties.
+        
+        if (X_wt < 0.01 && (prop.Region == SinglePhase_L || prop.Region == SinglePhase_V)) {
+            // Check if there's a phase discontinuity near the converged temperature
+            // by evaluating properties 1°C above and below
+            double T_converged = prop.T;
+            double dT = 1.0;  // Temperature step for checking
+            
+            PROP_H2ONaCl prop_below = prop_pTX(p, (T_converged - dT) + Kelvin, X_wt, false);
+            PROP_H2ONaCl prop_above = prop_pTX(p, (T_converged + dT) + Kelvin, X_wt, false);
+            
+            // Check for discontinuous phase transition (Region 0 → Region 2 or vice versa)
+            bool has_phase_jump = false;
+            PROP_H2ONaCl prop_liquid, prop_vapor;
+            
+            if (prop_below.Region == SinglePhase_L && prop_above.Region == SinglePhase_V) {
+                // Liquid below, vapor above
+                has_phase_jump = true;
+                prop_liquid = prop_below;
+                prop_vapor = prop_above;
+            } else if (prop_below.Region == SinglePhase_V && prop_above.Region == SinglePhase_L) {
+                // Vapor below, liquid above
+                has_phase_jump = true;
+                prop_liquid = prop_above;
+                prop_vapor = prop_below;
+            } else if (prop.Region == SinglePhase_L) {
+                // Check further ahead for vapor
+                for (double T_test = T_converged; T_test < T_converged + 10.0; T_test += 0.5) {
+                    PROP_H2ONaCl prop_test = prop_pTX(p, T_test + Kelvin, X_wt, false);
+                    if (prop_test.Region == SinglePhase_V) {
+                        has_phase_jump = true;
+                        prop_liquid = prop;
+                        prop_vapor = prop_test;
+                        break;
+                    }
+                }
+            } else if (prop.Region == SinglePhase_V) {
+                // Check further back for liquid
+                for (double T_test = T_converged; T_test > T_converged - 10.0 && T_test > 0.1; T_test -= 0.5) {
+                    PROP_H2ONaCl prop_test = prop_pTX(p, T_test + Kelvin, X_wt, false);
+                    if (prop_test.Region == SinglePhase_L) {
+                        has_phase_jump = true;
+                        prop_liquid = prop_test;
+                        prop_vapor = prop;
+                        break;
+                    }
+                }
+            }
+            
+            // If we detected a phase jump, check if target H falls in the gap
+            if (has_phase_jump) {
+                double H_l_sat = prop_liquid.H;
+                double H_v_sat = prop_vapor.H;
+                
+                if (H >= H_l_sat && H <= H_v_sat) {
+                    // Target H is in the two-phase region!
+                    // Calculate two-phase mixture properties
+                    
+                    // Vapor quality (mass fraction)
+                    double x_v = (H - H_l_sat) / (H_v_sat - H_l_sat);
+                    x_v = std::max(0.0, std::min(1.0, x_v));
+                    double x_l = 1.0 - x_v;
+                    
+                    // Get densities from the saturated states
+                    double Rho_l_sat = prop_liquid.Rho;
+                    double Rho_v_sat = prop_vapor.Rho;
+                    
+                    // Bulk density (harmonic mean weighted by mass fractions)
+                    double rho_bulk = 1.0 / (x_l / Rho_l_sat + x_v / Rho_v_sat);
+                    
+                    // Volume fractions (saturations)
+                    double S_l = (x_l * rho_bulk) / Rho_l_sat;
+                    double S_v = (x_v * rho_bulk) / Rho_v_sat;
+                    
+                    // Saturation temperature (average of liquid and vapor temperatures)
+                    double T_sat = 0.5 * (prop_liquid.T + prop_vapor.T);
+                    
+                    // Update properties to reflect two-phase state
+                    prop.Region = TwoPhase_L_V_X0;
+                    prop.T = T_sat;
+                    prop.H = H;  // Use target H
+                    prop.Rho = rho_bulk;
+                    prop.Rho_l = Rho_l_sat;
+                    prop.Rho_v = Rho_v_sat;
+                    prop.H_l = H_l_sat;
+                    prop.H_v = H_v_sat;
+                    prop.S_l = S_l;
+                    prop.S_v = S_v;
+                    prop.X_l = X_wt;  // At low salinity, both phases have similar composition
+                    prop.X_v = X_wt;
+                }
+            }
+        }
+        
         // calculate dynamic viscosity
         calcViscosity(prop.Region, p, prop.T, prop.X_l, prop.X_v, prop.Mu_l, prop.Mu_v);
 

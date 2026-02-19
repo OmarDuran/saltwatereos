@@ -35,10 +35,10 @@ int main()
         P_values_bar.push_back(pow(10.0, log_P));
     }
     
-    // Enthalpy: 10 points from 500 to 3500 kJ/kg
+    // Enthalpy: 10 points from 600 to 3500 kJ/kg
     vector<double> H_values_kJ;
     for(int i = 0; i < 10; i++) {
-        double H_kJ = 500.0 + i * (3500.0 - 500.0) / 9.0;
+        double H_kJ = 600.0 + i * (3500.0 - 600.0) / 9.0;
         H_values_kJ.push_back(H_kJ);
     }
     

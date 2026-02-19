@@ -139,6 +139,8 @@ list(APPEND Tests
     test_pHX_boundary
     test_pHX_boundary_bisection
     test_pHX_saturated_steam_bisection
+    test_physical_driesner_salinity
+    test_physical_driesner_salinity_bisection
     test_physical_limit_trace_salinity
     test_physical_limit_trace_salinity_bisection
     test_physical_limit_X_0001

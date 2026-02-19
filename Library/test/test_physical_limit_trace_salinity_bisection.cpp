@@ -167,9 +167,9 @@ int main()
         cout << "\n";
     }
     
-    // Now test prop_pHX
+    // Now test prop_pHX_bisection
     cout << "====================================================\n";
-    cout << "Testing prop_pHX with trace salinity\n";
+    cout << "Testing prop_pHX_bisection with trace salinity\n";
     cout << "====================================================\n\n";
     
     int pHX_tests = 0;
@@ -277,11 +277,11 @@ int main()
             continue;
         }
         
-        // Use prop_pHX with trace salinity
-        H2ONaCl::PROP_H2ONaCl prop_trace_pHX = eos.prop_pHX(P_Pa, H_target, X_trace);
+        // Use prop_pHX_bisection with trace salinity
+        H2ONaCl::PROP_H2ONaCl prop_trace_pHX = eos.prop_pHX_bisection(P_Pa, H_target, X_trace);
         
-        // Use prop_pHX with pure water
-        H2ONaCl::PROP_H2ONaCl prop_pure_pHX = eos.prop_pHX(P_Pa, H_target, X_pure);
+        // Use prop_pHX_bisection with pure water
+        H2ONaCl::PROP_H2ONaCl prop_pure_pHX = eos.prop_pHX_bisection(P_Pa, H_target, X_pure);
         
         cout << "  H_target = " << fixed << setprecision(2) << H_target/1e3 << " kJ/kg\n";
         cout << "  Pure water:      T=" << setprecision(2) << prop_pure_pHX.T << " C, Rho="
@@ -946,7 +946,7 @@ int main()
     cout << "  prop_pTX tests: " << total_tests << " executed, "
          << (total_tests - failed_tests) << " passed, " << failed_tests << " failed, "
          << skipped_tests << " skipped (region mismatch)\n";
-    cout << "  prop_pHX tests: " << pHX_tests << " executed, "
+    cout << "  prop_pHX_bisection tests: " << pHX_tests << " executed, "
          << (pHX_tests - pHX_failed) << " passed, " << pHX_failed << " failed\n";
     cout << "  Saturation line tests: " << sat_tests << " executed, "
          << (sat_tests - sat_failures) << " passed, " << sat_failures << " failed\n";

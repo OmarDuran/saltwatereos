@@ -49,7 +49,7 @@ int main()
     for(double P_bar = 50.0; P_bar <= 150.0; P_bar += 2.0) {
         double P_Pa = P_bar * 1e5;
         
-        H2ONaCl::PROP_H2ONaCl prop = eos.prop_pHX(P_Pa, H_target, X_wt);
+        H2ONaCl::PROP_H2ONaCl prop = eos.prop_pHX_bisection(P_Pa, H_target, X_wt);
         
         double delta_Mu_v = 0.0;
         if(prev_Mu_v > 1e-12 && prop.Mu_v > 1e-12) {
@@ -100,7 +100,7 @@ int main()
     for(double P_bar = 95.0; P_bar <= 105.0; P_bar += 0.5) {
         double P_Pa = P_bar * 1e5;
         
-        H2ONaCl::PROP_H2ONaCl prop = eos.prop_pHX(P_Pa, H_target, X_wt);
+        H2ONaCl::PROP_H2ONaCl prop = eos.prop_pHX_bisection(P_Pa, H_target, X_wt);
         
         double delta_Mu_v = 0.0;
         if(prev_Mu_v > 1e-12 && prop.Mu_v > 1e-12) {
@@ -144,7 +144,7 @@ int main()
         for(double P_bar = 99.5; P_bar <= 100.5; P_bar += 0.1) {
             double P_Pa = P_bar * 1e5;
             
-            H2ONaCl::PROP_H2ONaCl prop = eos.prop_pHX(P_Pa, H_target, X_wt);
+            H2ONaCl::PROP_H2ONaCl prop = eos.prop_pHX_bisection(P_Pa, H_target, X_wt);
             
             double delta_Mu_v = 0.0;
             if(prev_Mu_v > 1e-12 && prop.Mu_v > 1e-12) {
@@ -187,8 +187,8 @@ int main()
     double P1 = 96.0e5;
     double P2 = 103.0e5;
     
-    H2ONaCl::PROP_H2ONaCl prop1 = eos.prop_pHX(P1, H_target, X_wt);
-    H2ONaCl::PROP_H2ONaCl prop2 = eos.prop_pHX(P2, H_target, X_wt);
+    H2ONaCl::PROP_H2ONaCl prop1 = eos.prop_pHX_bisection(P1, H_target, X_wt);
+    H2ONaCl::PROP_H2ONaCl prop2 = eos.prop_pHX_bisection(P2, H_target, X_wt);
     
     cout << "At P = 96 bar:\n";
     cout << "  Region: " << prop1.Region << " (" << eos.getPhaseRegionName(prop1.Region) << ")\n";

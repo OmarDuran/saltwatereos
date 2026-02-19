@@ -10,7 +10,7 @@ int main()
     const double X_test = 1.0e-4;
     const double X_pure = 0.0;
     
-    cout << "prop_pHX Boundary Test at X=0.0001\n";
+    cout << "prop_pHX_bisection Boundary Test at X=0.0001\n";
     cout << "=============================================\n\n";
     
     int total_tests = 0;
@@ -30,7 +30,7 @@ int main()
         H2ONaCl::PROP_H2ONaCl prop_pTX = eos.prop_pTX(P_sat_Pa, T_K, X_test, false);
         
         // Test prop_pHX at saturation
-        H2ONaCl::PROP_H2ONaCl prop_pHX = eos.prop_pHX(P_sat_Pa, H_v_sat, X_test);
+        H2ONaCl::PROP_H2ONaCl prop_pHX = eos.prop_pHX_bisection(P_sat_Pa, H_v_sat, X_test);
         
         cout << "T=" << fixed << setprecision(1) << T_C << "C, P=" << setprecision(2) << P_sat_bar << " bar:\n";
         cout << "  prop_pTX: Region=" << prop_pTX.Region << ", S_v=" << setprecision(4) << prop_pTX.S_v 
@@ -60,10 +60,10 @@ int main()
     cout << "Summary: " << total_tests << " tests, " << failures << " failures\n";
     
     if(failures == 0) {
-        cout << "\n✓✓✓ SUCCESS: prop_pHX is consistent with prop_pTX!\n";
+        cout << "\n✓✓✓ SUCCESS: prop_pHX_bisection is consistent with prop_pTX!\n";
         return 0;
     } else {
-        cout << "\n⚠ FAILED: prop_pHX has inconsistencies\n";
+        cout << "\n⚠ FAILED: prop_pHX_bisection has inconsistencies\n";
         return 1;
     }
 }

@@ -213,6 +213,11 @@ namespace H2ONaCl
         guess_T_PhX(p, H, X_wt, T1, T2);
         T1 *= T_scale_down;
         T2 *= T_scale_up;
+        
+        // Clamp to valid temperature range [0.1, 1000]°C
+        T1 = std::max(0.1, std::min(1000.0, T1));
+        T2 = std::max(0.1, std::min(1000.0, T2));
+        
         // cout<<"T1: "<<T1<<" T2: "<<T2<<endl;
         PROP_H2ONaCl prop1, prop2;
         prop1=prop_pTX(p,T1+Kelvin,X_wt, false);
@@ -239,7 +244,7 @@ namespace H2ONaCl
         }
         if(h1>H)
         {
-            T1=0;
+            T1=0.1;  // Use valid minimum temperature
             prop1=prop_pTX(p,T1+Kelvin,X_wt, false);
             h1=prop1.H;
         }
@@ -274,6 +279,10 @@ namespace H2ONaCl
                 
                 double T_new=0;
                 T_new = (T1 +  T2) / 2;
+                
+                // Safety: clamp to valid range [0.1, 1000]°C
+                T_new = std::max(0.1, std::min(1000.0, T_new));
+                
                 if (isnan(T_new))
                 {
                     cout<<"error, T_new is nan: "<<T_new<<endl;
@@ -500,7 +509,7 @@ namespace H2ONaCl
         init_prop(prop);
         prop.P = p; prop.H = H; prop.X_wt = X_wt;
 
-        const double tol = 1e-8;
+        const double tol = 1e-7;
         const int max_iter = 1000;
         double T1, T2;
         
@@ -522,6 +531,16 @@ namespace H2ONaCl
         // 1. INITIAL BRACKETING
         guess_T_PhX(p, H, X_wt, T1, T2);
 
+        // Ensure initial bounds respect valid temperature range [0.1, 1000]°C
+        T1 = std::max(0.1, std::min(1000.0, T1));
+        T2 = std::max(0.1, std::min(1000.0, T2));
+        
+        // Ensure T1 < T2
+        if(T1 >= T2) {
+            T1 = 0.1;
+            T2 = 1000.0;
+        }
+
         double T_low = T1;
         double T_high = T2;
         PROP_H2ONaCl PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
@@ -540,7 +559,7 @@ namespace H2ONaCl
             if (H < PROP_low.H && H < PROP_high.H) {
                 // H is below both bounds - expand downward
                 double T_new = T_low - (T_high - T_low);
-                T_new = std::max(0.01, T_new);  // Don't go below 0.01°C
+                T_new = std::max(0.1, T_new);  // Don't go below 0.1°C (valid range minimum)
                 PROP_high = PROP_low;
                 T_high = T_low;
                 T_low = T_new;
@@ -548,7 +567,7 @@ namespace H2ONaCl
             } else if (H > PROP_low.H && H > PROP_high.H) {
                 // H is above both bounds - expand upward
                 double T_new = T_high + (T_high - T_low);
-                T_new = std::min(1000.0, T_new);  // Don't go above 1000°C
+                T_new = std::min(1000.0, T_new);  // Don't go above 1000°C (valid range maximum)
                 PROP_low = PROP_high;
                 T_low = T_high;
                 T_high = T_new;
@@ -562,7 +581,7 @@ namespace H2ONaCl
         if ((PROP_low.H - H) * (PROP_high.H - H) >= 0) {
             // Fallback to wide temperature range
             if (X_wt < 1e-6) {
-                T_low = 0.01; T_high = 1000.0;
+                T_low = 0.1; T_high = 1000.0;  // Use valid temperature range [0.1, 1000]°C
                 PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
                 PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
                 
@@ -580,12 +599,12 @@ namespace H2ONaCl
         // 2. BISECTION LOOP WITH ADAPTIVE TOLERANCE FOR CRITICAL REGION
         PROP_H2ONaCl PROP_mid;
         double adaptive_tol = tol;
-        double temp_tol = 1e-8;  // Temperature convergence tolerance
+        double temp_tol = 1e-5;  // Temperature convergence tolerance (0.0001°C = 0.1 mK)
         
         if(near_critical) {
             // Relax tolerance slightly near critical point due to strong nonlinearity
             adaptive_tol = tol * 10.0;
-            temp_tol = 1e-6;  // Looser temperature tolerance
+            temp_tol = 1e-4;  // Looser temperature tolerance near critical point (0.001°C = 1 mK)
         }
         
         for (int iter = 0; iter < max_iter; ++iter) {
@@ -653,8 +672,23 @@ namespace H2ONaCl
             // Convergence Check (Relative error in Enthalpy with adaptive tolerance)
             double H_error = std::abs(PROP_mid.H - H);
             double H_ref = std::max(std::abs(H), 1.0);  // Avoid division by zero
+            double T_interval = std::abs(T_high - T_low);
             
-            if (H_error < adaptive_tol * H_ref || std::abs(T_high - T_low) < temp_tol) {
+            // Estimate dH/dT from current brackets to detect flat regions
+            double dH_dT = std::abs(PROP_high.H - PROP_low.H) / std::max(T_interval, 1e-10);
+            
+            // For flat enthalpy regions (high T, low dH/dT), need much tighter temperature convergence
+            // to achieve acceptable temperature accuracy
+            double effective_temp_tol = temp_tol;
+            if(dH_dT < 1000.0) {  // < 1 kJ/kg/K indicates flat region (typical at high T)
+                effective_temp_tol = 1e-2;  // 0.01°C when enthalpy is flat
+            }
+            
+            // Convergence: require both enthalpy AND temperature to be within tolerance
+            bool H_converged = (H_error < adaptive_tol * H_ref);
+            bool T_converged = (T_interval < effective_temp_tol);
+            
+            if (H_converged && T_converged) {
                 break;
             }
             

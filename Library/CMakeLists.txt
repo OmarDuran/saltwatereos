@@ -137,13 +137,16 @@ list(APPEND Tests
     test_H2ONaCl_LUT
     test_negative_saturation
     test_pHX_boundary
+    test_pHX_boundary_bisection
     test_pHX_saturated_steam
     test_physical_limit_trace_salinity
+    test_physical_limit_trace_salinity_bisection
     test_physical_limit_X_0001
     test_prop_pHX_bisection
     test_scan_negative_saturation
     test_supercritical_viscosity
     test_viscosity_pH_line
+    test_viscosity_pH_line_bisection
     test_water_mu_diagnostic
     test_water_mu_direct
 )

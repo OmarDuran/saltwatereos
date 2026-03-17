@@ -12,7 +12,7 @@ set(SWEOS_LIB_PATH "../Library/lib")
 set(SWEOS_LIB_NAME "eosH2ONaCl")
 # options
 option(USE_OMP "Enable OpenMP to parallel computing" OFF)
-option(USE_TBB "Enable Intel TBB for parallel computing" OFF)
+option(USE_TBB "Enable Intel TBB for parallel computing" ON)
 
 set(SWEOS_MAJOR_VERSION 1)
 set(SWEOS_MINOR_VERSION 7)

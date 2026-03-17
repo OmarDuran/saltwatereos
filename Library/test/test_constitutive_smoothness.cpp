@@ -630,8 +630,8 @@ static SectionStats test_calcViscosity(H2ONaCl::cH2ONaCl& eos)
     s.name = "calcViscosity(reg,P,T,Xwl,Xwv)  T-sweep";
     const double threshold = 2.5e-4;  // Pa·s per 1°C (0.25 mPa·s)
 
-    auto T_vals = linspace(1.0, 900.0, 1);
-    auto P_bar  = logspace(10.0, 4500.0, 1);
+    auto T_vals = linspace(1.0, 900.0, 5);
+    auto P_bar  = logspace(10.0, 4500.0, 5);
     vector<double> X_wt = {1e-5, 1e-4, 0.001, 0.005, 0.02, 0.05, 0.10, 0.20};
 
     for (double Pb : P_bar) {

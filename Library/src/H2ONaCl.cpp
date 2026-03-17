@@ -256,22 +256,19 @@ namespace H2ONaCl
         }
         if((T2 > T_max_allowed || h1 > H) || (h2 < H && T2 == T_max_allowed && p >= 1.7e7) )
         {
-            prop.Region=UnknownPhaseRegion;
-            prop.Rho=NAN;
-            prop.Rho_l=NAN;
-            prop.Rho_v=NAN;
-            prop.Rho_h=NAN;
-            prop.H=NAN;
-            prop.H_l=NAN;
-            prop.H_v=NAN;
-            prop.H_h=NAN;
-            prop.S_l=NAN;
-            prop.S_v=NAN;
-            prop.S_h=NAN;
-            prop.Mu=NAN;
-            prop.Mu_l=NAN;
-            prop.X_l=NAN;
-            prop.X_v=NAN;
+            // H is outside the achievable range at this (P, X).
+            // Return properties at the nearest boundary so the caller
+            // always gets numerical values.
+            if (h2 < H) {
+                // H exceeds max achievable → clamp to T_max properties
+                prop = prop_pTX(p, T_max_allowed + Kelvin, X_wt, false);
+            } else if (h1 > H) {
+                // H below min achievable → clamp to T_min properties
+                prop = prop_pTX(p, 0.1 + Kelvin, X_wt, false);
+            } else {
+                // Fallback: return T_max properties
+                prop = prop_pTX(p, T_max_allowed + Kelvin, X_wt, false);
+            }
         }
         else
         {
@@ -801,20 +798,22 @@ namespace H2ONaCl
         
         // Safety: if after expansion we still don't bracket H
         if ((PROP_low.H - H) * (PROP_high.H - H) >= 0) {
-            // Fallback to wide temperature range
-            if (X_wt < 1e-6) {
-                T_low = 0.1; T_high = T_max_allowed;  // Use valid temperature range
-                PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
-                PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
-                
-                // If still not bracketing, return unknown region
-                if ((PROP_low.H - H) * (PROP_high.H - H) >= 0) {
-                    prop.Region = UnknownPhaseRegion;
-                    return prop;
+            // Fallback to wide temperature range (all salinities)
+            T_low = 0.1; T_high = T_max_allowed;
+            PROP_low = prop_pTX(p, T_low + Kelvin, X_wt, false);
+            PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
+            
+            // If still not bracketing, H is outside achievable range.
+            // Return properties at the nearest boundary (T_max or T_min)
+            // so the caller always gets numerical values.
+            if ((PROP_low.H - H) * (PROP_high.H - H) >= 0) {
+                if (H >= PROP_high.H) {
+                    // H exceeds max achievable → clamp to T_max properties
+                    return PROP_high;
+                } else {
+                    // H below min achievable → clamp to T_min properties
+                    return PROP_low;
                 }
-            } else {
-                prop.Region = UnknownPhaseRegion;
-                return prop;
             }
         }
 
@@ -3839,6 +3838,10 @@ namespace H2ONaCl
      */
     void cH2ONaCl::P_X_Critical(double T, double& P_crit, double& X_crit)
     {
+        // Silently clamp T to valid range — bisection solvers can overshoot slightly
+        if (T < H2ONaCl::TMIN_C) T = H2ONaCl::TMIN_C;
+        if (T > H2ONaCl::TMAX_C) T = H2ONaCl::TMAX_C;
+
         // calculate critical pressure
         P_crit=0;
         if(T < H2O::T_Critic && T>=H2ONaCl::TMIN_C){

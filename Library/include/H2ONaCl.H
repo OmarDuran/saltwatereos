@@ -143,6 +143,8 @@ namespace H2ONaCl
         SupercriticalRegionInfo detectSupercriticalRegion(const double T_c, const double p_Pa,
                                                           const double X_wt, const double X_mol);
         
+    // ── Constitutive (granular) functions exposed for unit / smoothness testing ──
+    public:
         /**
          * @brief Find phase region when (T,P,X) is given.
          *
@@ -194,6 +196,7 @@ namespace H2ONaCl
         double water_h_pT(double p, double T_K);
         double water_mu_pT(double p, double T_K);
         double water_mu_ph(double p, double h, double T_K);
+    private:
     public:
         // cH2ONaCl(double P, double T_K, double X);//P: Pa. T: K  X, wt%: (0, 1]
         cH2ONaCl();

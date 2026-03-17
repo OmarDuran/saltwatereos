@@ -129,6 +129,7 @@ enable_testing()
 list(APPEND Tests
     test_boundary_smoothness
     test_boundary_temperature
+    test_constitutive_smoothness
     test_critical_point_region_identification
     test_debug_viscosity
     test_enthalpy_consistency
@@ -136,9 +137,11 @@ list(APPEND Tests
     test_findRegion
     test_H2ONaCl_LUT
     test_negative_saturation
+    test_pHX_bisection_smoothness
     test_pHX_boundary
     test_pHX_boundary_bisection
     test_pHX_saturated_steam_bisection
+    test_physical_driesner_partial_salinity_bisection
     test_physical_driesner_salinity
     test_physical_driesner_salinity_bisection
     test_physical_limit_trace_salinity

@@ -731,7 +731,8 @@ namespace H2ONaCl
         init_prop(prop);
         prop.P = p; prop.H = H; prop.X_wt = X_wt;
 
-        const double tol = 1e-7;
+        bool converged = false;
+        const double tol = 1e-6;
         const int max_iter = 1000;
         double T1, T2;
         
@@ -756,7 +757,7 @@ namespace H2ONaCl
         // Temperature limits depend on salinity
         // For low salinity (X <= 0.001), use strict 1000°C limit to preserve fixes
         // For higher salinity, allow extrapolation to 1100°C for boundary continuity
-        double T_max_allowed = (X_wt <= 0.001) ? 1000.0 : 1100.0;
+        double T_max_allowed = (X_wt <= 0.001) ? 1100.0 : 1200.0;
 
         // Ensure initial bounds respect valid temperature range [0.1, T_max_allowed]°C
         T1 = std::max(0.1, std::min(T_max_allowed, T1));
@@ -774,7 +775,7 @@ namespace H2ONaCl
         PROP_H2ONaCl PROP_high = prop_pTX(p, T_high + Kelvin, X_wt, false);
 
         // Expand bounds iteratively if they don't bracket H
-        const int max_expand = 20;
+        const int max_expand = 50;
         int expand_count = 0;
         while (expand_count < max_expand) {
             bool brackets = (PROP_low.H - H) * (PROP_high.H - H) < 0;
@@ -828,7 +829,7 @@ namespace H2ONaCl
         // 2. BISECTION LOOP WITH ADAPTIVE TOLERANCE FOR CRITICAL REGION
         PROP_H2ONaCl PROP_mid;
         double adaptive_tol = tol;
-        double temp_tol = 1e-5;  // Temperature convergence tolerance (0.0001°C = 0.1 mK)
+        double temp_tol = 1e-4;  // Temperature convergence tolerance (0.0001°C = 0.1 mK)
         
         if(near_critical) {
             // Relax tolerance slightly near critical point due to strong nonlinearity
@@ -921,6 +922,7 @@ namespace H2ONaCl
             bool T_converged = (T_interval < effective_temp_tol);
             
             if (H_converged && T_converged) {
+                converged = true;
                 break;
             }
             
@@ -1219,6 +1221,12 @@ namespace H2ONaCl
             }
         }
 
+        if (!converged) {
+            std::cerr << "Warning: prop_pHX_bisection did not converge for "
+                      << "P = " << p << " Pa, H = " << H << " J/kg, X = " << X_wt
+                      << ". Returned result may be inaccurate." << std::endl;
+        }
+      
         return prop;
     }
 

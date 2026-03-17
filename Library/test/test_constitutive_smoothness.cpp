@@ -1006,8 +1006,8 @@ int main()
     results.push_back(test_fluidProp_crit_T(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
-    // ── 11 T from pHX ──
-    cout << "  [15/15] prop_pHX_bisection      ...";  cout.flush();
+    // ── 11 T from prop_pHX_bisection ──
+    cout << "  [15/15] T from prop_pHX_bisection      ...";  cout.flush();
     results.push_back(test_Temperature_from_pHX(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 

@@ -596,7 +596,11 @@ namespace H2ONaCl
                     prop.Region = SinglePhase_V;
                     prop.S_v = 1.0;
                     prop.S_l = 0.0;
-                    // Keep converged density and temperature, but mark as vapor
+                    // Ensure density is vapor-like; the bisection may have converged
+                    // to a T where the EOS returned the liquid-phase density
+                    if(prop.Rho > 0.5 * (Rho_l_iapws + Rho_v_iapws)) {
+                        prop.Rho = Rho_v_iapws;
+                    }
                     prop.Rho_v = prop.Rho;
                     prop.Rho_l = 0.0;
                     prop.H_v = H;
@@ -608,7 +612,11 @@ namespace H2ONaCl
                     prop.Region = SinglePhase_L;
                     prop.S_l = 1.0;
                     prop.S_v = 0.0;
-                    // Keep converged density and temperature, but mark as liquid
+                    // Ensure density is liquid-like; the bisection may have converged
+                    // to a T where the EOS returned the vapor-phase density
+                    if(prop.Rho < 0.5 * (Rho_l_iapws + Rho_v_iapws)) {
+                        prop.Rho = Rho_l_iapws;
+                    }
                     prop.Rho_l = prop.Rho;
                     prop.Rho_v = 0.0;
                     prop.H_l = H;
@@ -1125,7 +1133,11 @@ namespace H2ONaCl
                     prop.Region = SinglePhase_V;
                     prop.S_v = 1.0;
                     prop.S_l = 0.0;
-                    // Keep converged density and temperature, but mark as vapor
+                    // Ensure density is vapor-like; the bisection may have converged
+                    // to a T where prop_pTX returned the liquid-phase density
+                    if(prop.Rho > 0.5 * (Rho_l_iapws + Rho_v_iapws)) {
+                        prop.Rho = Rho_v_iapws;
+                    }
                     prop.Rho_v = prop.Rho;
                     prop.Rho_l = 0.0;
                     prop.H_v = H;
@@ -1137,7 +1149,11 @@ namespace H2ONaCl
                     prop.Region = SinglePhase_L;
                     prop.S_l = 1.0;
                     prop.S_v = 0.0;
-                    // Keep converged density and temperature, but mark as liquid
+                    // Ensure density is liquid-like; the bisection may have converged
+                    // to a T where prop_pTX returned the vapor-phase density
+                    if(prop.Rho < 0.5 * (Rho_l_iapws + Rho_v_iapws)) {
+                        prop.Rho = Rho_l_iapws;
+                    }
                     prop.Rho_l = prop.Rho;
                     prop.Rho_v = 0.0;
                     prop.H_l = H;
@@ -3158,17 +3174,6 @@ namespace H2ONaCl
             // Use >= instead of > to catch cases where Rho_star_v equals rl_sat (boundary case)
             if (has_valid_sat && (std::isnan(Rho_star_v) || Rho_star_v >= rl_sat)) {
                 Rho_star_v = rv_sat;
-            }
-            // Additional guard: If Rho_star_v is still suspiciously high (>100 kg/m³) for vapor,
-            // it means water_rho_pT returned liquid density. Try getting vapor density at saturation.
-            if (Rho_star_v > 100.0 && P_Pa < 22e6) {
-                // Call water_rho_pT at saturation temperature for this pressure
-                double T_sat_K = T_sat_p + Kelvin;
-                Rho_star_v = water_rho_pT(P_Pa, T_sat_K);
-                // If still bad, use rv_sat if available
-                if ((std::isnan(Rho_star_v) || Rho_star_v > 100.0) && has_valid_sat) {
-                    Rho_star_v = rv_sat;
-                }
             }
             // Above critical P, just check for NaN and use a reasonable fallback
             else if (!has_valid_sat && std::isnan(Rho_star_v)) {

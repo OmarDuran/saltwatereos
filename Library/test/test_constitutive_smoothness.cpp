@@ -109,10 +109,10 @@ static SectionStats test_VL_LiquidBranch(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "X_VaporLiquidCoexistSurface_LiquidBranch(T,P)";
-    const double threshold = 0.05;  // mole-fraction jump per 1°C step
+    const double threshold = 0.025;  // mole-fraction jump per 0.5°C step
 
-    auto T_vals = linspace(1.0, 800.0, 800);  // 1°C steps
-    auto P_vals = logspace(10.0, 4500.0, 12);
+    auto T_vals = linspace(1.0, 800.0, 1600);  // 0.5°C steps
+    auto P_vals = logspace(10.0, 4500.0, 24);
 
     for (double P : P_vals) {
         double prev = eos.X_VaporLiquidCoexistSurface_LiquidBranch(T_vals[0], P);
@@ -144,10 +144,10 @@ static SectionStats test_VL_VaporBranch(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "X_VaporLiquidCoexistSurface_VaporBranch(T,P)";
-    const double threshold = 0.02;  // mole-fraction jump per 1°C
+    const double threshold = 0.015;  // mole-fraction jump per 0.5°C (steep near T=800°C boundary)
 
-    auto T_vals = linspace(1.0, 800.0, 800);
-    auto P_vals = logspace(10.0, 4500.0, 12);
+    auto T_vals = linspace(1.0, 800.0, 1600);
+    auto P_vals = logspace(10.0, 4500.0, 24);
 
     for (double P : P_vals) {
         double prev = eos.X_VaporLiquidCoexistSurface_VaporBranch(T_vals[0], P);
@@ -179,10 +179,10 @@ static SectionStats test_HaliteLiquidus(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "X_HaliteLiquidus(T,P)";
-    const double threshold = 0.05;  // mole-fraction / °C
+    const double threshold = 0.025;  // mole-fraction / 0.5°C
 
-    auto T_vals = linspace(1.0, 800.0, 800);
-    auto P_vals = logspace(10.0, 4500.0, 12);
+    auto T_vals = linspace(1.0, 800.0, 1600);
+    auto P_vals = logspace(10.0, 4500.0, 24);
 
     for (double P : P_vals) {
         double prev = eos.X_HaliteLiquidus(T_vals[0], P);
@@ -214,12 +214,12 @@ static SectionStats test_VaporHaliteCoexist(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "X_VaporHaliteCoexist(T,P)";
-    const double threshold = 0.25;  // mole-fraction jump per 1°C
+    const double threshold = 0.20;  // mole-fraction jump per 0.5°C
     // NOTE: Driesner eq.17 has infinite slope at P_normalized=1 (critical pressure)
-    // due to pow(1-P_norm, j1) with j1<1. Jumps up to ~0.21 are expected near P_crit.
+    // due to pow(1-P_norm, j1) with j1<1. Jumps up to ~0.18 are expected near P_crit.
 
-    auto T_vals = linspace(1.0, 800.0, 800);
-    auto P_vals = logspace(10.0, 4500.0, 12);
+    auto T_vals = linspace(1.0, 800.0, 1600);
+    auto P_vals = logspace(10.0, 4500.0, 24);
 
     for (double P : P_vals) {
         double prev = eos.X_VaporHaliteCoexist(T_vals[0], P);
@@ -251,10 +251,10 @@ static SectionStats test_P_VLH_Coexist(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "P_VaporLiquidHaliteCoexist(T)";
-    const double threshold = 5.0;  // bar per 1°C step
+    const double threshold = 2.5;  // bar per 0.5°C step
 
     // Valid range: ~0°C to ~594°C (max LVH temperature)
-    auto T_vals = linspace(1.0, 590.0, 590);
+    auto T_vals = linspace(1.0, 590.0, 1180);
 
     double prev = eos.P_VaporLiquidHaliteCoexist(T_vals[0]);
     s.nEvals++;
@@ -288,10 +288,10 @@ static SectionStats test_CriticalCurve(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "P_X_Critical(T)  → P_crit, X_crit";
-    const double P_threshold = 10.0;  // bar per °C
-    const double X_threshold = 0.02;  // mole-fraction per °C
+    const double P_threshold = 5.0;  // bar per 0.5°C
+    const double X_threshold = 0.01;  // mole-fraction per 0.5°C
 
-    auto T_vals = linspace(H2O::T_Critic, 1000.0, 627);  // ~1°C steps from 373→1000
+    auto T_vals = linspace(H2O::T_Critic, 1000.0, 1254);  // ~0.5°C steps from 373→1000
 
     double prevP, prevX;
     eos.P_X_Critical(T_vals[0], prevP, prevX);
@@ -342,9 +342,9 @@ static SectionStats test_RhoBrine(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "Rho_brine(T,P,X)  T-sweep (liquid only)";
-    const double threshold = 10.0;  // kg/m³ per °C
+    const double threshold = 15.0;  // kg/m³ per 0.5°C (steep near boiling boundary)
 
-    auto P_vals = logspace(10.0, 4500.0, 8);
+    auto P_vals = logspace(10.0, 4500.0, 16);
     // mole fractions
     vector<double> X_mol = {0.001, 0.005, 0.01, 0.03, 0.06, 0.10, 0.20};
 
@@ -365,7 +365,7 @@ static SectionStats test_RhoBrine(H2ONaCl::cH2ONaCl& eos)
         }
         if (T_max_sweep < 10.0) T_max_sweep = 10.0;
 
-        int nT = std::max(10, (int)(T_max_sweep - 1.0));
+        int nT = std::max(10, (int)((T_max_sweep - 1.0) * 2));
         auto T_vals = linspace(1.0, T_max_sweep, nT);
 
         for (double X : X_mol) {
@@ -403,10 +403,10 @@ static SectionStats test_TstarV(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "T_star_V(T,P,X)  T-sweep";
-    const double threshold = 5.0;  // °C per °C step
+    const double threshold = 2.5;  // °C per 0.5°C step
 
-    auto T_vals = linspace(1.0, 900.0, 900);
-    auto P_vals = logspace(10.0, 4500.0, 8);
+    auto T_vals = linspace(1.0, 900.0, 1800);
+    auto P_vals = logspace(10.0, 4500.0, 16);
     vector<double> X_mol = {0.001, 0.01, 0.05, 0.10, 0.20};
 
     for (double P : P_vals) {
@@ -445,12 +445,12 @@ static SectionStats test_calcRho(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "calcRho(reg,T,P,Xl,Xv)  T-sweep";
-    const double threshold = 70.0;  // kg/m³ per °C within same region
+    const double threshold = 50.0;  // kg/m³ per 1°C within same region
     // NOTE: Near two-phase entry, X_l changes rapidly, shifting T_star
-    // and thus density. Jumps up to ~66 kg/m³ per 2°C step are expected.
+    // and thus density. Jumps up to ~46 kg/m³ per 1°C step are expected.
 
-    auto T_vals = linspace(1.0, 900.0, 450);   // 2°C steps
-    auto P_bar  = logspace(10.0, 4500.0, 8);
+    auto T_vals = linspace(1.0, 900.0, 900);   // 1°C steps
+    auto P_bar  = logspace(10.0, 4500.0, 16);
     vector<double> X_wt = {0.001, 0.005, 0.02, 0.05, 0.10, 0.20};
 
     for (double Pb : P_bar) {
@@ -538,12 +538,12 @@ static SectionStats test_calcEnthalpy(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "calcEnthalpy(reg,T,P,Xl,Xv)  T-sweep";
-    const double threshold = 100000.0;  // J/kg per °C within same region (100 kJ/kg)
+    const double threshold = 70000.0;  // J/kg per 1°C within same region (70 kJ/kg)
     // NOTE: Near two-phase entry, X_l changes rapidly → large T_star shift →
-    // enthalpy jumps up to ~91 kJ/kg per 2°C step are inherent to the model.
+    // enthalpy jumps up to ~64 kJ/kg per 1°C step are inherent to the model.
 
-    auto T_vals = linspace(1.0, 900.0, 450);
-    auto P_bar  = logspace(10.0, 4500.0, 8);
+    auto T_vals = linspace(1.0, 900.0, 900);
+    auto P_bar  = logspace(10.0, 4500.0, 16);
     vector<double> X_wt = {0.001, 0.005, 0.02, 0.05, 0.10, 0.20};
 
     for (double Pb : P_bar) {
@@ -628,10 +628,10 @@ static SectionStats test_calcViscosity(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "calcViscosity(reg,P,T,Xwl,Xwv)  T-sweep";
-    const double threshold = 5e-4;  // Pa·s per °C (0.5 mPa·s)
+    const double threshold = 2.5e-4;  // Pa·s per 1°C (0.25 mPa·s)
 
-    auto T_vals = linspace(1.0, 900.0, 450);
-    auto P_bar  = logspace(10.0, 4500.0, 8);
+    auto T_vals = linspace(1.0, 900.0, 900);
+    auto P_bar  = logspace(10.0, 4500.0, 16);
     vector<double> X_wt = {0.001, 0.005, 0.02, 0.05, 0.10, 0.20};
 
     for (double Pb : P_bar) {
@@ -702,10 +702,10 @@ static SectionStats test_findRegion_compositions(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "findRegion → Xl_mol, Xv_mol  T-sweep";
-    const double threshold = 0.05;  // mole-fraction per °C within same region
+    const double threshold = 0.025;  // mole-fraction per 0.5°C within same region
 
-    auto T_vals = linspace(1.0, 900.0, 900);
-    auto P_bar  = logspace(10.0, 4500.0, 10);
+    auto T_vals = linspace(1.0, 900.0, 1800);
+    auto P_bar  = logspace(10.0, 4500.0, 20);
     vector<double> X_wt = {0.001, 0.005, 0.02, 0.05, 0.10, 0.20};
 
     for (double Pb : P_bar) {
@@ -771,13 +771,13 @@ static SectionStats test_fluidProp_crit_P(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "fluidProp_crit_P(P)  P-sweep (saturation curve)";
-    const double T_threshold   = 4.0;    // °C per 0.5-bar step (~7°C/bar at low P is physical)
-    const double Rho_threshold = 30.0;   // kg/m³ per step
-    const double H_threshold   = 40000;  // J/kg per step (40 kJ/kg — steep at low P)
+    const double T_threshold   = 2.0;    // °C per 0.25-bar step
+    const double Rho_threshold = 15.0;   // kg/m³ per step
+    const double H_threshold   = 20000;  // J/kg per step (20 kJ/kg)
 
     // Pressure from 5 bar (PMIN) to 210 bar (stop before pure-water critical ~220.64 bar)
-    // Use 0.5-bar steps for finer resolution
-    auto P_vals = linspace(5e5, 210e5, 411);  // 0.5-bar steps, in Pa
+    // Use 0.25-bar steps for finer resolution
+    auto P_vals = linspace(5e5, 210e5, 822);  // 0.25-bar steps, in Pa
 
     double prevT, prevRl, prevRv, prevHl, prevHv, dpd_l, dpd_v, mu_l, mu_v;
     eos.fluidProp_crit_P(P_vals[0], 1e-10, prevT, prevRl, prevHl, prevHv,
@@ -829,11 +829,11 @@ static SectionStats test_fluidProp_crit_T(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "fluidProp_crit_T(T)  T-sweep (saturation curve)";
-    const double P_threshold   = 3.0;    // bar per °C
-    const double Rho_threshold = 20.0;   // kg/m³ per °C
-    const double H_threshold   = 20000;  // J/kg per °C
+    const double P_threshold   = 1.5;    // bar per 0.5°C
+    const double Rho_threshold = 10.0;   // kg/m³ per 0.5°C
+    const double H_threshold   = 10000;  // J/kg per 0.5°C
 
-    auto T_vals = linspace(1.0, 370.0, 370);  // 1°C steps up to ~critical
+    auto T_vals = linspace(1.0, 370.0, 740);  // 0.5°C steps up to ~critical
 
     double prevP, prevRl, prevRv, prevHl, prevHv;
     eos.fluidProp_crit_T(T_vals[0], 1e-10, prevP, prevRl, prevRv, prevHl, prevHv);

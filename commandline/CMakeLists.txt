@@ -2,18 +2,22 @@
 cmake_minimum_required(VERSION 3.3...3.12 FATAL_ERROR)
 
 # Detect native architecture to avoid mismatch with TBB/system libraries
+# On Apple Silicon Macs, builds may incorrectly target x86_64 when run under Rosetta
 if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
+  # Prefer CMAKE_HOST_SYSTEM_PROCESSOR (set after project()), fallback to sysctl/uname
   execute_process(
-    COMMAND sysctl -n hw.machine
-    OUTPUT_VARIABLE HOST_ARCH
+    COMMAND sysctl -n hw.optional.arm64
+    OUTPUT_VARIABLE _apple_silicon
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
   )
-  if(NOT HOST_ARCH)
+  if(_apple_silicon STREQUAL "1")
+    set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architecture" FORCE)
+  else()
     execute_process(COMMAND uname -m OUTPUT_VARIABLE HOST_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(CMAKE_OSX_ARCHITECTURES "${HOST_ARCH}" CACHE STRING "Build architecture" FORCE)
   endif()
-  set(CMAKE_OSX_ARCHITECTURES "${HOST_ARCH}" CACHE STRING "Build architecture" FORCE)
-  message(STATUS "Setting build architecture to native: ${HOST_ARCH}")
+  message(STATUS "Setting build architecture to: ${CMAKE_OSX_ARCHITECTURES}")
 endif()
 
 set(PROGRAM_NAME swEOS)

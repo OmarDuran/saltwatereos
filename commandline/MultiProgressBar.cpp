@@ -4,9 +4,9 @@
  * @brief Implementation of progress bar.
  * @version 1.0
  * @date 2019-09-03
- * 
+ *
  * @copyright Copyright (c) 2019
- * 
+ *
  */
 #include "MultiProgressBar.h"
 #include <iomanip>
@@ -42,7 +42,7 @@ MultiProgressBar::MultiProgressBar(double total, int color) : m_bar_char_left('#
 {
     #ifdef _WIN32
         CONSOLE_SCREEN_BUFFER_INFO csbi;
-        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi); 
+        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
         int width = (int)(csbi.srWindow.Right-csbi.srWindow.Left+1);
         m_length_bar = width - 35;
     #else
@@ -97,8 +97,8 @@ MultiProgressBar::MultiProgressBar(vector<double> left, vector<double> right, ve
         m_percent.push_back(0);
         m_left.push_back(left[i]);
         m_right.push_back(right[i]);
-        if (m_maxLength_title < m_title[i].size())
-            m_maxLength_title = m_title[i].size();
+        if (m_maxLength_title < (int)m_title[i].size())
+            m_maxLength_title = (int)m_title[i].size();
     }
 
     m_factor = m_length_bar / 100.0;

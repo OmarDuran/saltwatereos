@@ -5,13 +5,14 @@ cmake_minimum_required(VERSION 3.3...3.12 FATAL_ERROR)
 set(PROGRAM_NAME swEOS)
 
 project(SaltWaterEOS LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SWEOS_LIB_PATH "../Library/lib")
 set(SWEOS_LIB_NAME "eosH2ONaCl")
 # options
 option(USE_OMP "Enable OpenMP to parallel computing" OFF)
+option(USE_TBB "Enable Intel TBB for parallel computing" OFF)
 
 set(SWEOS_MAJOR_VERSION 1)
 set(SWEOS_MINOR_VERSION 7)
@@ -85,7 +86,7 @@ if(USE_OMP)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
   endif()
-  #windows vs2017 doesn't need opm library link 
+  #windows vs2017 doesn't need opm library link
   set(LIBomp "")
   if (APPLE)
     set(LIBomp "omp")
@@ -95,14 +96,30 @@ if(USE_OMP)
   link_directories("/usr/local/lib" "/opt/local/lib")
 endif()
 
-
+# Using TBB
+set(LIBtbb "")
+if(USE_TBB)
+  find_package(TBB REQUIRED)
+  if(TBB_FOUND)
+    message(STATUS "TBB FOUND: ${TBB_VERSION}")
+    add_definitions("-DUSE_TBB=1")
+    set(LIBtbb TBB::tbb)
+  else()
+    message(FATAL_ERROR "TBB not found. Please install TBB (e.g. brew install tbb)")
+  endif()
+endif()
 
 
 #2. Source code dir
 
-# add H2ONaCl source and library 
+# add H2ONaCl source and library
 include_directories(../Library/include)
-link_directories(${SWEOS_LIB_PATH} "../Library/lib")
+# Use absolute path and find the library directly to avoid Xcode appending config subdirectory
+find_library(SWEOS_LIB ${SWEOS_LIB_NAME} PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../Library/lib" NO_DEFAULT_PATH)
+if(NOT SWEOS_LIB)
+  message(FATAL_ERROR "Library ${SWEOS_LIB_NAME} not found in ${CMAKE_CURRENT_SOURCE_DIR}/../Library/lib")
+endif()
+message(STATUS "Found ${SWEOS_LIB_NAME}: ${SWEOS_LIB}")
 aux_source_directory(. SRC_MAIN)
 set( Srcs_bash ./SWEOSbash.cpp ./MultiProgressBar.cpp ./getopt.cpp)
 set( Hdrs_bash ./SWEOSbash.h ./MultiProgressBar.h ./getopt.h)
@@ -110,7 +127,7 @@ set( Hdrs_bash ./SWEOSbash.h ./MultiProgressBar.h ./getopt.h)
 # add Executable target
 add_executable(${PROGRAM_NAME}  ${Srcs_bash}  main.cpp)
 
-target_link_libraries(${PROGRAM_NAME} ${SWEOS_LIB_NAME} ${LIBomp})
+target_link_libraries(${PROGRAM_NAME} ${SWEOS_LIB} ${LIBomp} ${LIBtbb})
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../swEOSVersion.h.in
                ${CMAKE_CURRENT_SOURCE_DIR}/swEOSVersion.h)

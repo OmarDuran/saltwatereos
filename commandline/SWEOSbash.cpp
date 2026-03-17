@@ -7,7 +7,7 @@ namespace SWEOSbash
     #ifdef _WIN32
       // set terminal as black(bg)+white(fg) model
       system("color 07"); //see https://www.geeksforgeeks.org/how-to-print-colored-text-in-c/
-      GetConsoleScreenBufferInfo(m_hConsole, &csbi); 
+      GetConsoleScreenBufferInfo(m_hConsole, &csbi);
       m_currentConsoleAttr = csbi.wAttributes;
       int width = (int)(csbi.srWindow.Right-csbi.srWindow.Left+1);
       // int height = (int)(csbi.srWindow.Bottom-csbi.srWindow.Top+1);
@@ -31,7 +31,7 @@ namespace SWEOSbash
     #endif
     
     // helpINFO();
-    //parse arguments and check 
+    //parse arguments and check
     cSWEOSarg arg;
     if(!arg.Parse(argc, argv)) return false;
     if(!arg.Validate()) return false;
@@ -49,6 +49,9 @@ namespace SWEOSbash
       m_threadNumOMP = 1;
     #else
       m_threadNumOMP = omp_get_max_threads();
+    #endif
+    #ifdef USE_TBB
+      m_threadNumOMP = (int)tbb::global_control::active_value(tbb::global_control::max_allowed_parallelism);
     #endif
     for(int i=0;i<3;i++)
     for(int j=0;j<3;j++)m_valueR[i][j]=0;
@@ -75,7 +78,7 @@ namespace SWEOSbash
     {
       value=atof(optarg);
     }else
-    { 
+    {
       char optCh=opt;
       cout<<ERROR_COUT<<"Option of -"<<optCh<<" argument is empty or cannot be recognized"<<endl;
       return false;
@@ -86,7 +89,7 @@ namespace SWEOSbash
   bool cSWEOSarg::Parse(int argc, char** argv)
   {
     if(argc<2)return false; //there is no arguments
-    int opt; 
+    int opt;
     const char *optstring = "D:V:P:T:X:H:R:O:G:t:vhn"; // set argument templete
     int option_index = 0;
     // static struct option long_options[] = {
@@ -96,7 +99,7 @@ namespace SWEOSbash
     // };
     int valid_args=0;
     double doubleOptValue;
-    while ((opt = getopt(argc, argv, optstring)) != -1) 
+    while ((opt = getopt(argc, argv, optstring)) != -1)
     {
       if(opt!='?')
       {
@@ -130,6 +133,10 @@ namespace SWEOSbash
         #else
           m_threadNumOMP=(int)doubleOptValue;
           if(m_threadNumOMP>omp_get_max_threads())m_threadNumOMP=omp_get_max_threads();
+          if(m_threadNumOMP<1)m_threadNumOMP=1;
+        #endif
+        #ifdef USE_TBB
+          m_threadNumOMP=(int)doubleOptValue;
           if(m_threadNumOMP<1)m_threadNumOMP=1;
         #endif
         break;
@@ -346,6 +353,21 @@ namespace SWEOSbash
           <<"\n"<<endl;
       int lenT = (int)(arrT.size());
       int lenP = (int)(arrP.size());
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+        tbb::parallel_for(tbb::blocked_range<int>(0, lenP), [&](const tbb::blocked_range<int>& r) {
+          for (int j = r.begin(); j < r.end(); j++) {
+            for (int k = 0; k < lenT; k++) {
+              H2ONaCl::cH2ONaCl eos;
+              props[k+j*lenT] = eos.prop_pTX(arrP[j]*1e5, arrT[k]+Kelvin, arrX[0]);
+            }
+            { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+          }
+        });
+      }
+      #else
       #pragma omp parallel for shared(arrT, arrP, arrX, props, lenT)
       for (int j = 0; j < lenP; j++)
       {
@@ -357,7 +379,8 @@ namespace SWEOSbash
         }
         #pragma omp critical
         multibar.Update();
-      } 
+      }
+      #endif
       Write2D3DResult(arrT, arrP, arrX, props, m_valueO, "Temperature (deg.C)", "Pressure (bar)", "Salinity",m_normalize_vtk);
         
     }else if(m_valueV=="PX" || m_valueV=="XP")
@@ -392,8 +415,23 @@ namespace SWEOSbash
           <<rangeP[0]<<", "<<rangeP[1]<<"] bar, fixed temperature T="
           <<m_valueT<<" deg.C "
           <<"\n"<<endl;
-      int lenX=arrX.size();
+      int lenX=(int)(arrX.size());
       int lenP = (int)(arrP.size());
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+        tbb::parallel_for(tbb::blocked_range<int>(0, lenP), [&](const tbb::blocked_range<int>& r) {
+          for (int j = r.begin(); j < r.end(); j++) {
+            for (int k = 0; k < lenX; k++) {
+              H2ONaCl::cH2ONaCl eos;
+              props[k+j*lenX] = eos.prop_pTX(arrP[j]*1e5, arrT[0]+Kelvin, arrX[k]);
+            }
+            { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+          }
+        });
+      }
+      #else
       #pragma omp parallel for shared(arrT, arrP, arrX, props, lenX)
       for (int j = 0; j < lenP; j++)
       {
@@ -405,7 +443,8 @@ namespace SWEOSbash
         }
         #pragma omp critical
         multibar.Update();
-      } 
+      }
+      #endif
       Write2D3DResult(arrX, arrP, arrT, props, m_valueO, "Salinity", "Pressure (bar)", "Temperature (deg.C)",m_normalize_vtk);
     }else if(m_valueV=="TX" || m_valueV=="XT")
     {
@@ -439,8 +478,23 @@ namespace SWEOSbash
           <<rangeT[0]<<", "<<rangeT[1]<<"] deg.C, fixed pressure P="
           <<m_valueP<<" bar "
           <<"\n"<<endl;
-      int lenT=arrT.size();
+      int lenT=(int)(arrT.size());
       int lenX = (int)(arrX.size());
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+        tbb::parallel_for(tbb::blocked_range<int>(0, lenX), [&](const tbb::blocked_range<int>& r) {
+          for (int j = r.begin(); j < r.end(); j++) {
+            for (int k = 0; k < lenT; k++) {
+              H2ONaCl::cH2ONaCl eos;
+              props[k+j*lenT] = eos.prop_pTX(arrP[0]*1e5, arrT[k]+Kelvin, arrX[j]);
+            }
+            { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+          }
+        });
+      }
+      #else
       #pragma omp parallel for shared(arrT, arrP, arrX, props, lenT)
       for (int j = 0; j < lenX; j++)
       {
@@ -452,7 +506,8 @@ namespace SWEOSbash
         }
         #pragma omp critical
         multibar.Update();
-      } 
+      }
+      #endif
       Write2D3DResult(arrT, arrX, arrP, props, m_valueO, "Temperature (deg.C)", "Salinity", "Pressure (bar)",m_normalize_vtk);
     }else if(m_valueV=="PH" || m_valueV=="HP")
     {
@@ -487,8 +542,23 @@ namespace SWEOSbash
           <<rangeP[0]<<", "<<rangeP[1]<<"] bar, fixed salinity X="
           <<m_valueX<<" "
           <<"\n"<<endl;
-      int lenH=arrH.size();
+      int lenH=(int)(arrH.size());
       int lenP = (int)(arrP.size());
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+        tbb::parallel_for(tbb::blocked_range<int>(0, lenP), [&](const tbb::blocked_range<int>& r) {
+          for (int j = r.begin(); j < r.end(); j++) {
+            for (int k = 0; k < lenH; k++) {
+              H2ONaCl::cH2ONaCl eos;
+              props[k+j*lenH] = eos.prop_pHX_bisection(arrP[j]*1e5, arrH[k]*1000.0, arrX[0]);
+            }
+            { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+          }
+        });
+      }
+      #else
       #pragma omp parallel for shared(arrH, arrP, arrX, props, lenH)
       for (int j = 0; j < lenP; j++)
       {
@@ -500,7 +570,8 @@ namespace SWEOSbash
         }
         #pragma omp critical
         multibar.Update();
-      } 
+      }
+      #endif
       Write2D3DResult(arrH, arrP, arrX, props, m_valueO, "Enthalpy (kJ/kg)", "Pressure (bar)", "Salinity",m_normalize_vtk);
     }else if(m_valueV=="HX" || m_valueV=="XH")
     {
@@ -535,8 +606,23 @@ namespace SWEOSbash
           <<rangeX[0]<<", "<<rangeX[1]<<"], fixed pressure P="
           <<m_valueP<<" bar"
           <<"\n"<<endl;
-      int lenH=arrH.size();
+      int lenH=(int)(arrH.size());
       int lenX = (int)(arrX.size());
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+        tbb::parallel_for(tbb::blocked_range<int>(0, lenX), [&](const tbb::blocked_range<int>& r) {
+          for (int j = r.begin(); j < r.end(); j++) {
+            for (int k = 0; k < lenH; k++) {
+              H2ONaCl::cH2ONaCl eos;
+              props[k+j*lenH] = eos.prop_pHX_bisection(arrP[0]*1e5, arrH[k]*1000.0, arrX[j]);
+            }
+            { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+          }
+        });
+      }
+      #else
       #pragma omp parallel for shared(arrH, arrP, arrX, props, lenH)
       for (int j = 0; j < lenX; j++)
       {
@@ -548,7 +634,8 @@ namespace SWEOSbash
         }
         #pragma omp critical
         multibar.Update();
-      } 
+      }
+      #endif
       Write2D3DResult(arrH, arrX, arrP, props, m_valueO, "Enthalpy (kJ/kg)", "Salinity", "Pressure (bar)",m_normalize_vtk);
     }else
     {
@@ -558,7 +645,7 @@ namespace SWEOSbash
     }
     return true;
   }
-  bool Write2D3DResult(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::vector<H2ONaCl::PROP_H2ONaCl> props, 
+  bool Write2D3DResult(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::vector<H2ONaCl::PROP_H2ONaCl> props,
                        std::string outFile, std::string xTitle, std::string yTitle, std::string zTitle, bool isNormalize)
   {
     string extname;
@@ -582,7 +669,7 @@ namespace SWEOSbash
       eos.writeProps2xyz(x,y,z,props, outFile, xTitle, yTitle, zTitle,",");
     }
     else
-    { 
+    {
       cout<<WARN_COUT<<"Unrecognized format: "<<outFile<<endl;
       cout<<COLOR_GREEN<<"Write results into vtk file format"<<COLOR_DEFAULT<<endl;
       string newfilename="";
@@ -687,10 +774,27 @@ namespace SWEOSbash
           <<rangeP[0]<<", "<<rangeP[1]<<"] bar, X in ["
           <<rangeX[0]<<", "<<rangeX[1]<<"]"
           <<"\n"<<endl;
-      int lenT=arrT.size();
-      int lenTX=arrT.size()*arrX.size();
+      int lenT=(int)(arrT.size());
+      int lenTX=(int)(arrT.size()*arrX.size());
       int lenX = (int)(arrX.size());
       int lenP = (int)(arrP.size());
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+        tbb::parallel_for(tbb::blocked_range<int>(0, lenP), [&](const tbb::blocked_range<int>& r) {
+          for (int i = r.begin(); i < r.end(); i++) {
+            for (int j = 0; j < lenT; j++) {
+              for (int k = 0; k < lenX; k++) {
+                H2ONaCl::cH2ONaCl eos;
+                props[k+j*lenX+i*lenTX]=eos.prop_pTX(arrP[i]*1e5, arrT[j]+Kelvin, arrX[k]);
+              }
+            }
+            { std::lock_guard<std::mutex> lock(mtx); multiBar.Update(); }
+          }
+        });
+      }
+      #else
       #pragma omp parallel for shared(arrT, arrP, arrX, props, lenT, lenTX)
       for (int i = 0; i < lenP; i++)
       {
@@ -705,6 +809,7 @@ namespace SWEOSbash
         #pragma omp critical
         multiBar.Update();
       }
+      #endif
       Write2D3DResult(arrX, arrT, arrP, props, m_valueO, "Salinity", "Temperature (deg.C)", "Pressure (bar)",m_normalize_vtk);
     }else if(m_valueV=="PHX" || m_valueV=="PXH" || m_valueV=="HPX" || m_valueV=="HXP" || m_valueV=="XPH" || m_valueV=="XHP")
     {
@@ -749,11 +854,39 @@ namespace SWEOSbash
           <<rangeP[0]<<", "<<rangeP[1]<<"] bar, X in ["
           <<rangeX[0]<<", "<<rangeX[1]<<"]"
           <<"\n"<<endl;
-      int lenH=arrH.size();
-      int lenHX=arrH.size()*arrX.size();
+      int lenH=(int)(arrH.size());
+      int lenHX=(int)(arrH.size()*arrX.size());
       int lenX = (int)(arrX.size());
       int lenP = (int)(arrP.size());
       H2ONaCl::cH2ONaCl eos;
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+        tbb::parallel_for(tbb::blocked_range<int>(0, lenP), [&](const tbb::blocked_range<int>& r) {
+          for (int i = r.begin(); i < r.end(); i++) {
+            for (int j = 0; j < lenH; j++) {
+              for (int k = 0; k < lenX; k++) {
+                try {
+                  H2ONaCl::cH2ONaCl local_eos;
+                  props[k+j*lenX+i*lenHX]=local_eos.prop_pHX_bisection(arrP[i]*1e5, arrH[j]*1000.0, arrX[k]);
+                } catch(const std::exception& e) {
+                  std::lock_guard<std::mutex> lock(mtx);
+                  printf("P: %f, X: %f, H: %f\n",arrP[i], arrX[j], arrH[k]);
+                  std::cerr << e.what() << '\n';
+                } catch (...) {
+                  std::lock_guard<std::mutex> lock(mtx);
+                  printf("P: %f, X: %f, H: %f\n",arrP[i], arrX[j], arrH[k]);
+                  std::cerr << "Unknown exception! Aborting!" << std::endl;
+                  exit(0);
+                }
+              }
+            }
+            { std::lock_guard<std::mutex> lock(mtx); multiBar.Update(); }
+          }
+        });
+      }
+      #else
       #pragma omp parallel for shared(arrH, arrP, arrX, lenH, lenHX, eos)
       for (int i = 0; i < lenP; i++)
       {
@@ -790,6 +923,7 @@ namespace SWEOSbash
         #pragma omp critical
         multiBar.Update();
       }
+      #endif
       Write2D3DResult(arrX, arrH, arrP, props, m_valueO, "Salinity", "Enthalpy (kJ/kg)", "Pressure (bar)",m_normalize_vtk);
     }
     return true;
@@ -840,15 +974,31 @@ namespace SWEOSbash
         vector<double> arrP, arrX;
         vector<H2ONaCl::PROP_H2ONaCl> props;
         H2ONaCl::cH2ONaCl eos;
+        int lenT = (int)(arrT.size());
+        arrP.resize(lenT, m_valueP);
+        arrX.resize(lenT, m_valueX);
+        props.resize(lenT);
         MultiProgressBar multibar(arrT.size(),COLOR_BAR_BLUE);
+        #ifdef USE_TBB
+        {
+          std::mutex mtx;
+          tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+          tbb::parallel_for(tbb::blocked_range<int>(0, lenT), [&](const tbb::blocked_range<int>& r) {
+            for (int i = r.begin(); i < r.end(); i++) {
+              H2ONaCl::cH2ONaCl local_eos;
+              props[i] = local_eos.prop_pTX(arrP[i]*1e5, arrT[i]+Kelvin, arrX[i]);
+              { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+            }
+          });
+        }
+        #else
         for (size_t i = 0; i < arrT.size(); i++)
         {
-          arrP.push_back(m_valueP);
-          arrX.push_back(m_valueX);
           eos.m_prop=eos.prop_pTX(arrP[i]*1e5, arrT[i]+Kelvin, arrX[i]);
-          props.push_back(eos.m_prop);
+          props[i] = eos.m_prop;
           multibar.Update();
         }
+        #endif
         Write1Dresult(m_valueO, arrP, arrX, props);
       }
       break;
@@ -876,15 +1026,31 @@ namespace SWEOSbash
         vector<double> arrT, arrX;
         vector<H2ONaCl::PROP_H2ONaCl> props;
         H2ONaCl::cH2ONaCl eos;
+        int lenP = (int)(arrP.size());
+        arrT.resize(lenP, m_valueT);
+        arrX.resize(lenP, m_valueX);
+        props.resize(lenP);
         MultiProgressBar multibar(arrP.size(),COLOR_BAR_BLUE);
+        #ifdef USE_TBB
+        {
+          std::mutex mtx;
+          tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+          tbb::parallel_for(tbb::blocked_range<int>(0, lenP), [&](const tbb::blocked_range<int>& r) {
+            for (int i = r.begin(); i < r.end(); i++) {
+              H2ONaCl::cH2ONaCl local_eos;
+              props[i] = local_eos.prop_pTX(arrP[i]*1e5, arrT[i]+Kelvin, arrX[i]);
+              { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+            }
+          });
+        }
+        #else
         for (size_t i = 0; i < arrP.size(); i++)
         {
-          arrT.push_back(m_valueT);
-          arrX.push_back(m_valueX);
           eos.m_prop=eos.prop_pTX(arrP[i]*1e5, arrT[i]+Kelvin, arrX[i]);
-          props.push_back(eos.m_prop);
+          props[i] = eos.m_prop;
           multibar.Update();
         }
+        #endif
         Write1Dresult(m_valueO, arrP, arrX, props);
       }
       break;
@@ -912,15 +1078,31 @@ namespace SWEOSbash
         vector<double> arrT, arrP;
         vector<H2ONaCl::PROP_H2ONaCl> props;
         H2ONaCl::cH2ONaCl eos;
+        int lenX = (int)(arrX.size());
+        arrT.resize(lenX, m_valueT);
+        arrP.resize(lenX, m_valueP);
+        props.resize(lenX);
         MultiProgressBar multibar(arrX.size(),COLOR_BAR_BLUE);
+        #ifdef USE_TBB
+        {
+          std::mutex mtx;
+          tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+          tbb::parallel_for(tbb::blocked_range<int>(0, lenX), [&](const tbb::blocked_range<int>& r) {
+            for (int i = r.begin(); i < r.end(); i++) {
+              H2ONaCl::cH2ONaCl local_eos;
+              props[i] = local_eos.prop_pTX(arrP[i]*1e5, arrT[i]+Kelvin, arrX[i]);
+              { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+            }
+          });
+        }
+        #else
         for (size_t i = 0; i < arrX.size(); i++)
         {
-          arrT.push_back(m_valueT);
-          arrP.push_back(m_valueP);
           eos.m_prop=eos.prop_pTX(arrP[i]*1e5, arrT[i]+Kelvin, arrX[i]);
-          props.push_back(eos.m_prop);
+          props[i] = eos.m_prop;
           multibar.Update();
         }
+        #endif
         Write1Dresult(m_valueO, arrP, arrX, props);
       }
       break;
@@ -949,15 +1131,31 @@ namespace SWEOSbash
         vector<double> arrP, arrX;
         vector<H2ONaCl::PROP_H2ONaCl> props;
         H2ONaCl::cH2ONaCl eos;
+        int lenH = (int)(arrH.size());
+        arrP.resize(lenH, m_valueP);
+        arrX.resize(lenH, m_valueX);
+        props.resize(lenH);
         MultiProgressBar multibar(arrH.size(),COLOR_BAR_BLUE);
+        #ifdef USE_TBB
+        {
+          std::mutex mtx;
+          tbb::global_control gc(tbb::global_control::max_allowed_parallelism, m_threadNumOMP);
+          tbb::parallel_for(tbb::blocked_range<int>(0, lenH), [&](const tbb::blocked_range<int>& r) {
+            for (int i = r.begin(); i < r.end(); i++) {
+              H2ONaCl::cH2ONaCl local_eos;
+              props[i] = local_eos.prop_pHX_bisection(arrP[i]*1e5, arrH[i]*1000.0, arrX[i]);
+              { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+            }
+          });
+        }
+        #else
         for (size_t i = 0; i < arrH.size(); i++)
         {
-          arrP.push_back(m_valueP);
-          arrX.push_back(m_valueX);
           eos.m_prop=eos.prop_pHX_bisection(arrP[i]*1e5, arrH[i]*1000.0, arrX[i]);
-          props.push_back(eos.m_prop);
+          props[i] = eos.m_prop;
           multibar.Update();
         }
+        #endif
         Write1Dresult(m_valueO, arrP, arrX, props);
       }
       break;
@@ -1085,7 +1283,7 @@ namespace SWEOSbash
         {
           cout<<ERROR_COUT<<"There neither full -H, -P, -X options nor -G argument, swEOS will exit"<<endl;
           exit(0);
-        } 
+        }
     }
     else
     {
@@ -1271,7 +1469,7 @@ namespace SWEOSbash
           <<COLOR_DEFAULT<<endl;
       return false;
     }
-    if(HMAX0>HMAX/1000) 
+    if(HMAX0>HMAX/1000)
     {
       cout<<WARN_COUT<<COLOR_RED<<"The maximum value of enthalpy is specified by -R argument is MAX="<<HMAX0<<" kJ/kg"
           <<"may be out of range and could cause swEOS crash.\n"
@@ -1363,7 +1561,7 @@ namespace SWEOSbash
       size_t pos_start = 0, pos_end, delim_len = delimiter.length();
       string token;
       vector<string> res;
-      while ((pos_end = s.find (delimiter, pos_start)) != string::npos) 
+      while ((pos_end = s.find (delimiter, pos_start)) != string::npos)
       {
           token = s.substr (pos_start, pos_end - pos_start);
           pos_start = pos_end + delim_len;
@@ -1376,7 +1574,7 @@ namespace SWEOSbash
   {
     H2ONaCl::cH2ONaCl eos;
     eos.m_prop=eos.prop_pTX(P, T_K, X);
-    if(isCout) 
+    if(isCout)
     {
       eos.setColorPrint(true);
       cout<<eos<<endl;
@@ -1470,23 +1668,51 @@ namespace SWEOSbash
     //calculate
     H2ONaCl::cH2ONaCl eos;
     vector<H2ONaCl::PROP_H2ONaCl> props;
+    int numPoints = (int)(P.size());
+    props.resize(numPoints);
     MultiProgressBar multibar(P.size(),COLOR_BAR_BLUE);
     if(isT_H=="T")
     {
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::parallel_for(tbb::blocked_range<int>(0, numPoints), [&](const tbb::blocked_range<int>& r) {
+          for (int i = r.begin(); i < r.end(); i++) {
+            H2ONaCl::cH2ONaCl local_eos;
+            props[i] = local_eos.prop_pTX(P[i]*1e5, T_H[i]+Kelvin, X[i]);
+            { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+          }
+        });
+      }
+      #else
       for(int i=0;i<P.size();i++)
       {
         eos.m_prop=eos.prop_pTX(P[i]*1e5, T_H[i]+Kelvin, X[i]);
-        props.push_back(eos.m_prop);
+        props[i] = eos.m_prop;
         multibar.Update();
       }
+      #endif
     }else if(isT_H=="H")
     {
+      #ifdef USE_TBB
+      {
+        std::mutex mtx;
+        tbb::parallel_for(tbb::blocked_range<int>(0, numPoints), [&](const tbb::blocked_range<int>& r) {
+          for (int i = r.begin(); i < r.end(); i++) {
+            H2ONaCl::cH2ONaCl local_eos;
+            props[i] = local_eos.prop_pHX_bisection(P[i]*1e5, T_H[i]*1000, X[i]);
+            { std::lock_guard<std::mutex> lock(mtx); multibar.Update(); }
+          }
+        });
+      }
+      #else
       for(int i=0;i<P.size();i++)
       {
         eos.m_prop=eos.prop_pHX_bisection(P[i]*1e5, T_H[i]*1000, X[i]);
-        props.push_back(eos.m_prop);
+        props[i] = eos.m_prop;
         multibar.Update();
       }
+      #endif
     }
     //write to file
     Write1Dresult(outFile,P,X,props);

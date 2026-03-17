@@ -17,27 +17,34 @@ using namespace std;
     #include "omp.h"
 #endif
 
+#ifdef USE_TBB
+    #include <tbb/parallel_for.h>
+    #include <tbb/blocked_range.h>
+    #include <tbb/global_control.h>
+    #include <mutex>
+#endif
+
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 0
 
 #ifdef _WIN32
     #include "windows.h"
-    #define BLACK			0
-    #define BLUE			1
-    #define GREEN			2
-    #define CYAN			3
-    #define RED				4
-    #define MAGENTA			5
-    #define BROWN			6
-    #define LIGHTGRAY		7
-    #define DARKGRAY		8
-    #define LIGHTBLUE		9
-    #define LIGHTGREEN		10
-    #define LIGHTCYAN		11
-    #define LIGHTRED		12
-    #define LIGHTMAGENTA	13
-    #define YELLOW			14
-    #define WHITE			15
+    #define BLACK      0
+    #define BLUE      1
+    #define GREEN      2
+    #define CYAN      3
+    #define RED        4
+    #define MAGENTA      5
+    #define BROWN      6
+    #define LIGHTGRAY    7
+    #define DARKGRAY    8
+    #define LIGHTBLUE    9
+    #define LIGHTGREEN    10
+    #define LIGHTCYAN    11
+    #define LIGHTRED    12
+    #define LIGHTMAGENTA  13
+    #define YELLOW      14
+    #define WHITE      15
     static HANDLE   m_hConsole=GetStdHandle(STD_OUTPUT_HANDLE);
     static WORD     m_currentConsoleAttr;
     static CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -63,7 +70,7 @@ using namespace std;
 
 
 namespace SWEOSbash
-{                                                                                            
+{
     bool bash_run(int argc, char** argv);
     // calculation mode: 0d, 1d, 2d, 3d
     #define CALCULATION_MODE_SINGLEPOINT 0
@@ -85,14 +92,14 @@ namespace SWEOSbash
     #define VARIABLE_SELECTION_HX 10
 
     class cSWEOSarg
-    { 
+    {
     private:
         bool m_haveD, m_haveV, m_haveP, m_haveT, m_havet, m_haveX, m_haveH, m_haveR, m_haveG, m_haveO;
         int m_valueD, m_threadNumOMP;
         string m_valueV, m_valueG, m_valueO;
         double m_valueT, m_valueP, m_valueX, m_valueH;
         bool m_normalize_vtk;
-        // min/delta/max, order coresponding to -V parameter, 
+        // min/delta/max, order coresponding to -V parameter,
         //e.g. -VPT, m_valueR1 for pressure, m_valueR2 for temperature
         // double m_valueR1[3], m_valueR2[3], m_valueR3[3];
         double m_valueR[3][3];
@@ -135,7 +142,7 @@ namespace SWEOSbash
     vector<H2ONaCl::PROP_H2ONaCl> calculateMultiPoints_PTX_PHX(string valueV, string filePTX, string outFile, string isT_H);
     bool WriteCSV(string outFile,vector<double> P, vector<double> X, vector<H2ONaCl::PROP_H2ONaCl> props);
     bool Write1Dresult(string outFile,vector<double> P, vector<double> X, vector<H2ONaCl::PROP_H2ONaCl> props);
-    bool Write2D3DResult(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::vector<H2ONaCl::PROP_H2ONaCl> props, 
+    bool Write2D3DResult(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::vector<H2ONaCl::PROP_H2ONaCl> props,
                         std::string outFile, std::string xTitle, std::string yTitle, std::string zTitle, bool isNormalize=true);
     static void StartText()
     {
@@ -219,7 +226,7 @@ namespace SWEOSbash
         // <<"╚════██║██╔══██║██║     ██║   ██║███╗██║██╔══██║   ██║   ██╔══╝  ██╔══██╗    ██╔══╝  ██║   ██║╚════██║\n"
         // <<"███████║██║  ██║███████╗██║   ╚███╔███╔╝██║  ██║   ██║   ███████╗██║  ██║    ███████╗╚██████╔╝███████║\n"
         // <<"╚══════╝╚═╝  ╚═╝╚══════╝╚═╝    ╚══╝╚══╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝    ╚══════╝ ╚═════╝ ╚══════╝\n"
-        // <<COLOR_DEFAULT<<std::endl;;  
+        // <<COLOR_DEFAULT<<std::endl;;
         
         cout<<COLOR_GREEN<<"                              $$$$$$$$\\  $$$$$$\\   $$$$$$\\  \n"
         <<"                              $$  _____|$$  __$$\\ $$  __$$\\ \n"
@@ -229,7 +236,7 @@ namespace SWEOSbash
         <<" \\____$$\\ $$ | $$ | $$ |      $$ |      $$ |  $$ |$$\\   $$ |\n"
         <<"$$$$$$$  |\\$$$$$\\$$$$  |      $$$$$$$$\\  $$$$$$  |\\$$$$$$  |\n"
         <<"\\_______/  \\_____\\____/       \\________| \\______/  \\______/ \n"
-        <<COLOR_DEFAULT<<std::endl;;                                                                                                          
+        <<COLOR_DEFAULT<<std::endl;;
     }
 }
 #endif

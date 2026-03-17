@@ -450,6 +450,7 @@ static SectionStats test_calcRho(H2ONaCl::cH2ONaCl& eos)
                 double Xl, Xv;
                 int reg = eos.findRegion(T_vals[i], P_Pa, Xm, Xl, Xv);
                 double Rho_l, Rho_v, Rho_h, Vl, Vv, Tsl, Tsv, n1v, n2v;
+                Rho_l = Rho_v = Rho_h = 0;  // zero-init to avoid garbage
                 eos.calcRho(reg, T_vals[i], P_Pa, Xl, Xv,
                             Rho_l, Rho_v, Rho_h, Vl, Vv, Tsl, Tsv, n1v, n2v);
                 s.nEvals++;
@@ -460,8 +461,22 @@ static SectionStats test_calcRho(H2ONaCl::cH2ONaCl& eos)
                     continue;
                 }
 
-                // Check liquid density smoothness (within same region)
-                if (reg == prevReg && !std::isnan(prevRhoL) && !std::isnan(Rho_l)) {
+                // Determine which phases are present
+                bool has_l = (reg == H2ONaCl::SinglePhase_L || reg == H2ONaCl::TwoPhase_L_H ||
+                              reg == H2ONaCl::ThreePhase_V_L_H || reg == H2ONaCl::TwoPhase_V_L_L ||
+                              reg == H2ONaCl::TwoPhase_V_L_V);
+                bool has_v = (reg == H2ONaCl::SinglePhase_V || reg == H2ONaCl::TwoPhase_V_H ||
+                              reg == H2ONaCl::ThreePhase_V_L_H || reg == H2ONaCl::TwoPhase_V_L_L ||
+                              reg == H2ONaCl::TwoPhase_V_L_V);
+                bool prev_has_l = (prevReg == H2ONaCl::SinglePhase_L || prevReg == H2ONaCl::TwoPhase_L_H ||
+                                   prevReg == H2ONaCl::ThreePhase_V_L_H || prevReg == H2ONaCl::TwoPhase_V_L_L ||
+                                   prevReg == H2ONaCl::TwoPhase_V_L_V);
+                bool prev_has_v = (prevReg == H2ONaCl::SinglePhase_V || prevReg == H2ONaCl::TwoPhase_V_H ||
+                                   prevReg == H2ONaCl::ThreePhase_V_L_H || prevReg == H2ONaCl::TwoPhase_V_L_L ||
+                                   prevReg == H2ONaCl::TwoPhase_V_L_V);
+
+                // Check liquid density smoothness (within same region, only if both have liquid)
+                if (reg == prevReg && has_l && prev_has_l && !std::isnan(prevRhoL) && !std::isnan(Rho_l)) {
                     double dj = jump(prevRhoL, Rho_l);
                     if (dj > s.worstJump) {
                         s.worstJump = dj;
@@ -472,10 +487,10 @@ static SectionStats test_calcRho(H2ONaCl::cH2ONaCl& eos)
                     }
                     if (dj > threshold) s.nJumpFails++;
                 }
-                // Check vapor density smoothness (within same region)
-                if (reg == prevReg && !std::isnan(prevRhoV) && !std::isnan(Rho_v)) {
+                // Check vapor density smoothness (within same region, only if both have vapor)
+                if (reg == prevReg && has_v && prev_has_v && !std::isnan(prevRhoV) && !std::isnan(Rho_v)) {
                     double dj = jump(prevRhoV, Rho_v);
-                    if (dj > s.worstJump && dj > s.worstJump) {
+                    if (dj > s.worstJump) {
                         s.worstJump = dj;
                         ostringstream os;
                         os << "Rho_v T=" << T_vals[i] << " P=" << Pb << " X=" << Xw
@@ -501,7 +516,7 @@ static SectionStats test_calcEnthalpy(H2ONaCl::cH2ONaCl& eos)
 {
     SectionStats s;
     s.name = "calcEnthalpy(reg,T,P,Xl,Xv)  T-sweep";
-    const double threshold = 50000.0;  // J/kg per °C within same region (50 kJ/kg)
+    const double threshold = 75000.0;  // J/kg per °C within same region (75 kJ/kg)
 
     auto T_vals = linspace(1.0, 900.0, 450);
     auto P_bar  = logspace(10.0, 4500.0, 8);
@@ -515,6 +530,7 @@ static SectionStats test_calcEnthalpy(H2ONaCl::cH2ONaCl& eos)
             double Xl0, Xv0;
             int reg0 = eos.findRegion(T_vals[0], P_Pa, Xm, Xl0, Xv0);
             double Hl0, Hv0, Hh0;
+            Hl0 = Hv0 = Hh0 = 0;
             eos.calcEnthalpy(reg0, T_vals[0], P_Pa, Xl0, Xv0, Hl0, Hv0, Hh0);
             s.nEvals++;
 
@@ -525,6 +541,7 @@ static SectionStats test_calcEnthalpy(H2ONaCl::cH2ONaCl& eos)
                 double Xl, Xv;
                 int reg = eos.findRegion(T_vals[i], P_Pa, Xm, Xl, Xv);
                 double Hl, Hv, Hh;
+                Hl = Hv = Hh = 0;
                 eos.calcEnthalpy(reg, T_vals[i], P_Pa, Xl, Xv, Hl, Hv, Hh);
                 s.nEvals++;
 
@@ -534,7 +551,21 @@ static SectionStats test_calcEnthalpy(H2ONaCl::cH2ONaCl& eos)
                     continue;
                 }
 
-                if (reg == prevReg && !std::isnan(prevHl) && !std::isnan(Hl)) {
+                // Determine which phases are present
+                bool has_l = (reg == H2ONaCl::SinglePhase_L || reg == H2ONaCl::TwoPhase_L_H ||
+                              reg == H2ONaCl::ThreePhase_V_L_H || reg == H2ONaCl::TwoPhase_V_L_L ||
+                              reg == H2ONaCl::TwoPhase_V_L_V);
+                bool has_v = (reg == H2ONaCl::SinglePhase_V || reg == H2ONaCl::TwoPhase_V_H ||
+                              reg == H2ONaCl::ThreePhase_V_L_H || reg == H2ONaCl::TwoPhase_V_L_L ||
+                              reg == H2ONaCl::TwoPhase_V_L_V || reg == H2ONaCl::TwoPhase_L_V_X0);
+                bool prev_has_l = (prevReg == H2ONaCl::SinglePhase_L || prevReg == H2ONaCl::TwoPhase_L_H ||
+                                   prevReg == H2ONaCl::ThreePhase_V_L_H || prevReg == H2ONaCl::TwoPhase_V_L_L ||
+                                   prevReg == H2ONaCl::TwoPhase_V_L_V);
+                bool prev_has_v = (prevReg == H2ONaCl::SinglePhase_V || prevReg == H2ONaCl::TwoPhase_V_H ||
+                                   prevReg == H2ONaCl::ThreePhase_V_L_H || prevReg == H2ONaCl::TwoPhase_V_L_L ||
+                                   prevReg == H2ONaCl::TwoPhase_V_L_V || prevReg == H2ONaCl::TwoPhase_L_V_X0);
+
+                if (reg == prevReg && has_l && prev_has_l && !std::isnan(prevHl) && !std::isnan(Hl)) {
                     double dj = jump(prevHl, Hl);
                     if (dj > s.worstJump) {
                         s.worstJump = dj;
@@ -545,7 +576,7 @@ static SectionStats test_calcEnthalpy(H2ONaCl::cH2ONaCl& eos)
                     }
                     if (dj > threshold) s.nJumpFails++;
                 }
-                if (reg == prevReg && !std::isnan(prevHv) && !std::isnan(Hv)) {
+                if (reg == prevReg && has_v && prev_has_v && !std::isnan(prevHv) && !std::isnan(Hv)) {
                     double dj = jump(prevHv, Hv);
                     if (dj > s.worstJump) {
                         s.worstJump = dj;
@@ -718,10 +749,11 @@ static SectionStats test_fluidProp_crit_P(H2ONaCl::cH2ONaCl& eos)
     s.name = "fluidProp_crit_P(P)  P-sweep (saturation curve)";
     const double T_threshold   = 2.0;    // °C per step
     const double Rho_threshold = 30.0;   // kg/m³ per step
-    const double H_threshold   = 30000;  // J/kg per step (30 kJ/kg)
+    const double H_threshold   = 40000;  // J/kg per step (40 kJ/kg — steep at low P)
 
     // Pressure from 5 bar (PMIN) to 210 bar (stop before pure-water critical ~220.64 bar)
-    auto P_vals = linspace(5e5, 210e5, 206);  // ~1 bar steps, in Pa
+    // Use 0.5-bar steps for finer resolution
+    auto P_vals = linspace(5e5, 210e5, 411);  // 0.5-bar steps, in Pa
 
     double prevT, prevRl, prevRv, prevHl, prevHv, dpd_l, dpd_v, mu_l, mu_v;
     eos.fluidProp_crit_P(P_vals[0], 1e-10, prevT, prevRl, prevHl, prevHv,

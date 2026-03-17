@@ -3996,13 +3996,30 @@ namespace H2ONaCl
         }
         double P_crit = 0, X_crit=0;
         P_X_Critical(T,P_crit, X_crit); //calculate critic pressure
-        double P_normalized = (P - P_NaCl) / (P_crit - P_NaCl); // eq. 16
-        // DEBUG
-        if(P_normalized>1)
-        {
-            // cout<<WARN_COUT<<"Normalized pressure greater than 1: "<<P_normalized<<", set it to 1"<<endl;
-            P_normalized = 1;
+
+        // Guard: avoid division by zero and invalid domain
+        double denom = P_crit - P_NaCl;
+        if (std::abs(denom) < 1e-6) {
+            // P_crit ≈ P_NaCl: correlation is degenerate, return halite-saturated value
+            return X_HaliteLiquidus(T, P);
         }
+
+        double P_normalized = (P - P_NaCl) / denom; // eq. 16
+
+        // Smooth clamp: instead of a hard kink at P_normalized=1 use min(P_normalized,1)
+        // but also handle P_normalized > 1 gracefully via asymptotic decay
+        if (P_normalized >= 1.0) {
+            // Beyond critical pressure — correlation limit.
+            // At P_normalized = 1 the eq-17 polynomial gives log10_K_overline = 1,
+            // so K_prim → log10(P_NaCl/P_crit) and X_V → X_L * P_NaCl / P / 10^K_prim.
+            // Return this limiting value directly (avoids the pow(0, j[1]) kink).
+            double log10_XL_P_NaCl = log10(X_HaliteLiquidus(T, P_NaCl));
+            double log10_K_prim = 1.0 * (log10(P_NaCl/P_crit) - log10_XL_P_NaCl) + log10_XL_P_NaCl;
+            double X_L = X_HaliteLiquidus(T, P);
+            double X_V = X_L / pow(10.0, log10_K_prim) * P_NaCl / P;
+            return X_V;
+        }
+
         double one_minus_P_normalized = 1 - P_normalized; //used in eq. 17
         // eq. 17
         double log10_K_overline = 1 + j[0]*pow(one_minus_P_normalized, j[1])
@@ -4219,15 +4236,26 @@ namespace H2ONaCl
             X_tmp = 1;
         }
         double X_VL_LiquidBranch = 0;
+        // Guard: when P >= P_crit the sqrt(P_crit - P) becomes imaginary.
+        // At the critical point, X_liquid → X_crit, so return that limit.
+        if (P >= P_crit) {
+            return X_crit;
+        }
         // eq. 11
         if(T<H2O::T_Critic)
         {
             P_tmp2 = m_water.P_Boiling(T);
-            g0 = (X_tmp + g1 * (P_tmp - P_tmp2) + g2 * (pow(P_crit - P_tmp2, 2.0) - pow(P_crit - P_tmp, 2.0))) / (sqrt(P_crit - P_tmp) - sqrt(P_crit - P_tmp2));
+            // Guard: if P_tmp2 >= P_crit (can happen near T_crit of water), clamp
+            if (P_tmp2 >= P_crit) P_tmp2 = P_crit - 0.01;
+            double denom_g0 = sqrt(P_crit - P_tmp) - sqrt(P_crit - P_tmp2);
+            if (std::abs(denom_g0) < 1e-12) return X_crit;
+            g0 = (X_tmp + g1 * (P_tmp - P_tmp2) + g2 * (pow(P_crit - P_tmp2, 2.0) - pow(P_crit - P_tmp, 2.0))) / denom_g0;
             X_VL_LiquidBranch = g0 * sqrt(P_crit - P) - g0 * sqrt(P_crit - P_tmp2) - g1 * (P_crit - P_tmp2) - g2 * pow(P_crit - P_tmp2, 2.0) + g1 * (P_crit - P) + g2 * pow(P_crit - P, 2.0);
         }else
         {
-            g0 = (X_tmp - X_crit - g1 * (P_crit - P_tmp) - g2 * pow(P_crit - P_tmp, 2.0)) / sqrt(P_crit - P_tmp);
+            double arg_sqrt = P_crit - P_tmp;
+            if (arg_sqrt <= 0) return X_crit;
+            g0 = (X_tmp - X_crit - g1 * (P_crit - P_tmp) - g2 * pow(P_crit - P_tmp, 2.0)) / sqrt(arg_sqrt);
             X_VL_LiquidBranch = X_crit + g0 * sqrt(P_crit - P) + g1 * (P_crit - P) + g2 * pow(P_crit - P, 2.0);
         }
 
@@ -4273,13 +4301,28 @@ namespace H2ONaCl
         double X_VL_LiquidBranch = X_VaporLiquidCoexistSurface_LiquidBranch(T,P);
         double P_crit = 0, X_crit=0;
         P_X_Critical(T,P_crit, X_crit); //calculate critic pressure
-        double P_normalized = (P - P_NaCl) / (P_crit - P_NaCl); // eq. 16
-        // DEBUG
-        if(P_normalized>1)
-        {
-            // cout<<WARN_COUT<<"Normalized pressure greater than 1: "<<P_normalized<<", set it to 1"<<endl;
-            P_normalized = 1;
+
+        // Guard: avoid division by zero and invalid domain
+        double denom = P_crit - P_NaCl;
+        if (std::abs(denom) < 1e-6) {
+            // Degenerate case
+            return X_VL_LiquidBranch;
         }
+
+        double P_normalized = (P - P_NaCl) / denom; // eq. 16
+
+        // At or beyond the critical pressure: P_normalized >= 1
+        // Use the limiting value (one_minus_P_normalized → 0 ⇒ log10_K_overline → 1)
+        if (P_normalized >= 1.0) {
+            double log10_XL_P_NaCl = log10(X_HaliteLiquidus(T, P_NaCl));
+            double log10_K_prim = 1.0 * (log10(P_NaCl/P_crit) - log10_XL_P_NaCl) + log10_XL_P_NaCl;
+            double X_VL_VaporBranch = X_VL_LiquidBranch / pow(10.0, log10_K_prim) * P_NaCl / P;
+            if (P <= P_VaporLiquidHaliteCoexist(T)) {
+                X_VL_VaporBranch = X_HaliteLiquidus(T,P) / X_VL_LiquidBranch * X_VL_VaporBranch;
+            }
+            return X_VL_VaporBranch;
+        }
+
         double one_minus_P_normalized = 1 - P_normalized; //used in eq. 17
         // eq. 17
         double log10_K_overline = 1 + j[0]*pow(one_minus_P_normalized, j[1])
@@ -4426,7 +4469,16 @@ namespace H2ONaCl
         double V_water = V_extrapol(T, P, X);
         if (V_water == 0)
         {
-            V_water = H2O::MolarMass / m_water.Rho(T, P);
+            // V_extrapol failed — compute molar volume from T_star-corrected water density.
+            // Using T_star (not raw T) avoids getting vapor density at the boiling boundary.
+            double Rho_star = m_water.Rho(T_star, P);
+            // If Rho_star is suspiciously low (vapor-like), try liquid saturated density
+            if (Rho_star < 100.0) {
+                double Rho_liq_sat = m_water.Rho_Liquid_Saturated(T_star);
+                if (Rho_liq_sat > 100.0) Rho_star = Rho_liq_sat;
+                else Rho_star = m_water.Rho(T, P); // last resort: raw T
+            }
+            V_water = H2O::MolarMass / Rho_star;
         }
         return (H2O::MolarMass * (1 - X) + NaCl::MolarMass * X) / V_water;
     }

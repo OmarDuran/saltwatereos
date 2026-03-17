@@ -1,6 +1,12 @@
 # 0. CMake Minimum version
 cmake_minimum_required(VERSION 3.3...3.12 FATAL_ERROR)
 
+# Detect native architecture to avoid mismatch with TBB/system libraries
+if(NOT CMAKE_OSX_ARCHITECTURES)
+  execute_process(COMMAND uname -m OUTPUT_VARIABLE HOST_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(CMAKE_OSX_ARCHITECTURES "${HOST_ARCH}" CACHE STRING "Build architecture" FORCE)
+  message(STATUS "Setting build architecture to native: ${HOST_ARCH}")
+endif()
 
 set(PROGRAM_NAME swEOS)
 

@@ -16,6 +16,11 @@ make install
 build_swEOS=$rootpath/build
 mkdir $build_swEOS
 cd $build_swEOS
-HOST_ARCH=$(uname -m)
+# Detect architecture (sysctl works correctly even under Rosetta)
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then
+  HOST_ARCH=arm64
+else
+  HOST_ARCH=$(uname -m)
+fi
 cmake -DCMAKE_OSX_ARCHITECTURES=${HOST_ARCH} ..
 make install

@@ -4259,7 +4259,9 @@ namespace H2ONaCl
             X_VL_LiquidBranch = X_crit + g0 * sqrt(P_crit - P) + g1 * (P_crit - P) + g2 * pow(P_crit - P, 2.0);
         }
 
-        return X_VL_LiquidBranch;
+        // Clamp to non-negative: the Driesner polynomial can produce negative
+        // mole fractions near P_crit for T < T_crit(H2O), which is unphysical.
+        return std::max(0.0, X_VL_LiquidBranch);
     }
     std::vector<double> cH2ONaCl::X_VaporLiquidCoexistSurface_LiquidBranch(std::vector<double> T, std::vector<double> P)
     {
@@ -4469,16 +4471,23 @@ namespace H2ONaCl
         double V_water = V_extrapol(T, P, X);
         if (V_water == 0)
         {
-            // V_extrapol failed — compute molar volume from T_star-corrected water density.
-            // Using T_star (not raw T) avoids getting vapor density at the boiling boundary.
-            double Rho_star = m_water.Rho(T_star, P);
-            // If Rho_star is suspiciously low (vapor-like), try liquid saturated density
-            if (Rho_star < 100.0) {
-                double Rho_liq_sat = m_water.Rho_Liquid_Saturated(T_star);
-                if (Rho_liq_sat > 100.0) Rho_star = Rho_liq_sat;
-                else Rho_star = m_water.Rho(T, P); // last resort: raw T
+            // V_extrapol failed — this happens at/near the boiling boundary where
+            // V_L_sat >= V_water (PROST returned vapor-side density).
+            // Fall back to liquid saturated density at T_star, which is always well-defined.
+            double Rho_liq_sat = m_water.Rho_Liquid_Saturated(T_star);  // kg/m³
+            if (Rho_liq_sat > 50.0) {
+                V_water = H2O::MolarMass / Rho_liq_sat;  // m³/mol
+            } else {
+                // Above critical T, saturated liquid density is undefined.
+                // Use the general Rho(T_star, P) but ensure we don't get a tiny value.
+                double Rho_general = m_water.Rho(T_star, P);
+                if (Rho_general < 50.0) {
+                    // If still vapor-like, try with the original T (without T_star mapping)
+                    Rho_general = m_water.Rho(T, P);
+                }
+                if (Rho_general < 50.0) Rho_general = 1000.0; // absolute fallback
+                V_water = H2O::MolarMass / Rho_general;
             }
-            V_water = H2O::MolarMass / Rho_star;
         }
         return (H2O::MolarMass * (1 - X) + NaCl::MolarMass * X) / V_water;
     }

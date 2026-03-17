@@ -2,8 +2,16 @@
 cmake_minimum_required(VERSION 3.3...3.12 FATAL_ERROR)
 
 # Detect native architecture to avoid mismatch with TBB/system libraries
-if(NOT CMAKE_OSX_ARCHITECTURES)
-  execute_process(COMMAND uname -m OUTPUT_VARIABLE HOST_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
+  execute_process(
+    COMMAND sysctl -n hw.machine
+    OUTPUT_VARIABLE HOST_ARCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+  if(NOT HOST_ARCH)
+    execute_process(COMMAND uname -m OUTPUT_VARIABLE HOST_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
+  endif()
   set(CMAKE_OSX_ARCHITECTURES "${HOST_ARCH}" CACHE STRING "Build architecture" FORCE)
   message(STATUS "Setting build architecture to native: ${HOST_ARCH}")
 endif()

@@ -869,6 +869,60 @@ static SectionStats test_fluidProp_crit_T(H2ONaCl::cH2ONaCl& eos)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  SECTION 11 — Temperature from p, H, X (T_from_pHX)
+// ═══════════════════════════════════════════════════════════════════════
+
+static SectionStats test_Temperature_from_pHX(H2ONaCl::cH2ONaCl& eos)
+{
+    SectionStats s;
+    s.name = "T_from_pHX(p,H,X)  smoothness";
+    const double T_threshold = 10.0; // K per step (generous, adjust as needed)
+
+    // 15 points per dimension
+    auto X_vals = linspace(0.00001, 0.20, 15);
+    auto P_vals = linspace(5.0, 500.0, 200); // bar
+    auto H_vals = linspace(500.0, 3500.0, 15); // J/kg
+
+    int nNaN = 0;
+    double prevT = NAN;
+    for (double X : X_vals) {
+        for (double P : P_vals) {
+            for (size_t i = 0; i < H_vals.size(); ++i) {
+                double H = H_vals[i];
+                double T = NAN;
+                try {
+                    // Call prop_pHX_bisection and extract temperature
+                    auto prop = eos.prop_pHX_bisection(P, H, X);
+                    T = prop.T;
+                } catch (...) {
+                    nNaN++;
+                    continue;
+                }
+                s.nEvals++;
+                if (std::isnan(T) || T < 0.0 || T > 1000.0) {
+                    s.nNaN++;
+                    prevT = T;
+                    continue;
+                }
+                if (!std::isnan(prevT)) {
+                    double dj = jump(prevT, T);
+                    if (dj > s.worstJump) {
+                        s.worstJump = dj;
+                        ostringstream os;
+                        os << "X=" << X << " P=" << P << " H=" << H << " dT=" << dj;
+                        s.worstLoc = os.str();
+                    }
+                    if (dj > T_threshold) s.nJumpFails++;
+                }
+                prevT = T;
+            }
+        }
+    }
+    s.passed = (s.nJumpFails == 0);
+    return s;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  main
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -887,69 +941,74 @@ int main()
     vector<SectionStats> results;
 
     // ── 1  Phase-boundary surfaces ──
-    cout << "  [ 1/14] VL liquid branch ...";  cout.flush();
+    cout << "  [ 1/15] VL liquid branch ...";  cout.flush();
     results.push_back(test_VL_LiquidBranch(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
-    cout << "  [ 2/14] VL vapor branch  ...";  cout.flush();
+    cout << "  [ 2/15] VL vapor branch  ...";  cout.flush();
     results.push_back(test_VL_VaporBranch(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
-    cout << "  [ 3/14] Halite liquidus  ...";  cout.flush();
+    cout << "  [ 3/15] Halite liquidus  ...";  cout.flush();
     results.push_back(test_HaliteLiquidus(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
-    cout << "  [ 4/14] Vapor-halite coexist ...";  cout.flush();
+    cout << "  [ 4/15] Vapor-halite coexist ...";  cout.flush();
     results.push_back(test_VaporHaliteCoexist(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
-    cout << "  [ 5/14] P_VLH coexist    ...";  cout.flush();
+    cout << "  [ 5/15] P_VLH coexist    ...";  cout.flush();
     results.push_back(test_P_VLH_Coexist(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 2  Critical curve ──
-    cout << "  [ 6/14] Critical curve   ...";  cout.flush();
+    cout << "  [ 6/15] Critical curve   ...";  cout.flush();
     results.push_back(test_CriticalCurve(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 3  Rho_brine ──
-    cout << "  [ 7/14] Rho_brine        ...";  cout.flush();
+    cout << "  [ 7/15] Rho_brine        ...";  cout.flush();
     results.push_back(test_RhoBrine(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 4  T* correlation ──
-    cout << "  [ 8/14] T_star_V         ...";  cout.flush();
+    cout << "  [ 8/15] T_star_V         ...";  cout.flush();
     results.push_back(test_TstarV(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 5  Phase densities ──
-    cout << "  [ 9/14] calcRho          ...";  cout.flush();
+    cout << "  [ 9/15] calcRho          ...";  cout.flush();
     results.push_back(test_calcRho(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 6  Phase enthalpies ──
-    cout << "  [10/14] calcEnthalpy     ...";  cout.flush();
+    cout << "  [10/15] calcEnthalpy     ...";  cout.flush();
     results.push_back(test_calcEnthalpy(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 7  Phase viscosities ──
-    cout << "  [11/14] calcViscosity    ...";  cout.flush();
+    cout << "  [11/15] calcViscosity    ...";  cout.flush();
     results.push_back(test_calcViscosity(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 8  Partial compositions ──
-    cout << "  [12/14] findRegion Xl,Xv ...";  cout.flush();
+    cout << "  [12/15] findRegion Xl,Xv ...";  cout.flush();
     results.push_back(test_findRegion_compositions(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 9  fluidProp_crit_P ──
-    cout << "  [13/14] fluidProp_crit_P ...";  cout.flush();
+    cout << "  [13/15] fluidProp_crit_P ...";  cout.flush();
     results.push_back(test_fluidProp_crit_P(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ── 10 fluidProp_crit_T ──
-    cout << "  [14/14] fluidProp_crit_T ...";  cout.flush();
+    cout << "  [14/15] fluidProp_crit_T ...";  cout.flush();
     results.push_back(test_fluidProp_crit_T(eos));
+    cout << (results.back().passed ? " OK\n" : " FAIL\n");
+
+    // ── 11 T from pHX ──
+    cout << "  [15/15] prop_pHX_bisection      ...";  cout.flush();
+    results.push_back(test_Temperature_from_pHX(eos));
     cout << (results.back().passed ? " OK\n" : " FAIL\n");
 
     // ══════════════════════════════════════════════════════════════════

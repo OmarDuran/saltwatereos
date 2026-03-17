@@ -3111,9 +3111,22 @@ namespace H2ONaCl
             double Rho_star_l = water_rho_pT(P_Pa, Ts_l + Kelvin);
 
             // --- THE DENSITY GUARD ---
-            // Only apply guard if we have valid saturation densities (below critical P)
-            if (has_valid_sat && (std::isnan(Rho_star_l) || Rho_star_l < rv_sat)) {
-                Rho_star_l = rl_sat;
+            // Ensure liquid density stays physically reasonable.
+            if (has_valid_sat) {
+                if (std::isnan(Rho_star_l)) {
+                    Rho_star_l = rl_sat;
+                } else if (Rho_star_l < rv_sat) {
+                    // PROST returned vapor-like density for the liquid phase.
+                    // This means T_star mapped past the saturation line.
+                    // Use liquid saturated density as the physical limit.
+                    Rho_star_l = rl_sat;
+                } else if (Rho_star_l < rl_sat && Rho_star_l < rl_sat * 0.7) {
+                    // Between rv_sat and rl_sat but suspiciously low for liquid.
+                    // This can happen when T_star is very near the saturation T
+                    // and PROST's bisection landed on an intermediate value.
+                    // Clamp to liquid saturated density.
+                    Rho_star_l = rl_sat;
+                }
             }
             // Above critical P, just check for NaN and use a reasonable fallback
             else if (!has_valid_sat && std::isnan(Rho_star_l)) {
@@ -4469,27 +4482,39 @@ namespace H2ONaCl
     {
         double T_star = T_star_V(T, P, X);
         double V_water = V_extrapol(T, P, X);
-        if (V_water == 0)
-        {
-            // V_extrapol failed — this happens at/near the boiling boundary where
-            // V_L_sat >= V_water (PROST returned vapor-side density).
-            // Fall back to liquid saturated density at T_star, which is always well-defined.
-            double Rho_liq_sat = m_water.Rho_Liquid_Saturated(T_star);  // kg/m³
-            if (Rho_liq_sat > 50.0) {
-                V_water = H2O::MolarMass / Rho_liq_sat;  // m³/mol
-            } else {
-                // Above critical T, saturated liquid density is undefined.
-                // Use the general Rho(T_star, P) but ensure we don't get a tiny value.
-                double Rho_general = m_water.Rho(T_star, P);
-                if (Rho_general < 50.0) {
-                    // If still vapor-like, try with the original T (without T_star mapping)
-                    Rho_general = m_water.Rho(T, P);
-                }
-                if (Rho_general < 50.0) Rho_general = 1000.0; // absolute fallback
-                V_water = H2O::MolarMass / Rho_general;
+
+        // V_extrapol returns 0 when it cannot compute the extrapolated volume.
+        // It can also return an erroneous large value (in cm³/mol instead of m³/mol)
+        // at the boiling boundary. Detect this by checking if the resulting density
+        // would be physically reasonable (> 10 kg/m³ for brine).
+        double molFactor = (H2O::MolarMass * (1 - X) + NaCl::MolarMass * X);
+        bool needFallback = (V_water == 0);
+        if (!needFallback) {
+            double Rho_test = molFactor / V_water;
+            if (Rho_test < 10.0 || std::isnan(Rho_test)) {
+                needFallback = true;
             }
         }
-        return (H2O::MolarMass * (1 - X) + NaCl::MolarMass * X) / V_water;
+
+        if (needFallback)
+        {
+            // Compute molar volume from pure-water density at T_star.
+            double Rho_w = m_water.Rho(T_star, P);
+
+            // Guard: at the boiling boundary, m_water.Rho may return vapor density.
+            // For brine liquid density, ensure we get liquid-phase water density.
+            if (T_star < H2O::T_Critic && Rho_w < 200.0) {
+                double Rho_liq_sat = m_water.Rho_Liquid_Saturated(T_star);
+                if (Rho_liq_sat > 200.0) {
+                    Rho_w = Rho_liq_sat;
+                }
+            }
+            if (Rho_w <= 0 || std::isnan(Rho_w)) {
+                Rho_w = 1000.0;
+            }
+            V_water = H2O::MolarMass / Rho_w;
+        }
+        return molFactor / V_water;
     }
     void cH2ONaCl::writeVTK_PolyLine(string filename,vector<double> X, vector<double> Y, vector<double> Z)
     {

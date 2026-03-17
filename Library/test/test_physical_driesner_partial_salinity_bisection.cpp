@@ -6,6 +6,9 @@
 
 using namespace std;
 
+// Forward declaration
+bool validate_partial_compositions(const H2ONaCl::PROP_H2ONaCl& prop, double X_wt, string& status);
+
 int main()
 {
     H2ONaCl::cH2ONaCl eos;
